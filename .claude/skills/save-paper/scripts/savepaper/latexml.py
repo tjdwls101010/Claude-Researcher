@@ -379,8 +379,8 @@ def _figures_and_tables(soup: BeautifulSoup, article: Tag, out: Adapted, image_d
     for table in article.select("table"):
         if table.find_parent("table") is not None:
             continue
+        _promote_header(soup, table)  # before group marking, so the promoted header row is not read as a rule
         _flatten_cells(soup, table)
-        _promote_header(soup, table)
     return n_fig, n_tab
 
 
