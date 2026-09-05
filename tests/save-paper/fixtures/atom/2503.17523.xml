@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/G8QnGmkZfGR3252r94yE7Pjl0w0</id>
+  <title>arXiv Query: search_query=&amp;id_list=2503.17523&amp;start=0&amp;max_results=10</title>
+  <updated>2026-09-05T13:26:28Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=&amp;start=0&amp;max_results=10&amp;id_list=2503.17523" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>10</opensearch:itemsPerPage>
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2503.17523v3</id>
+    <title>Bayesian Teaching Enables Probabilistic Reasoning in Large Language Models</title>
+    <updated>2026-01-15T17:21:57Z</updated>
+    <link href="https://arxiv.org/abs/2503.17523v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2503.17523v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Large language models (LLMs) are increasingly used as agents that interact with users and with the world. To do so successfully, LLMs must construct representations of the world and form probabilistic beliefs about them. To provide personalized recommendations, for example, the LLM needs to infer a user's preferences from their behavior over multiple interactions. The Bayesian inference framework lays out the optimal way for an agent to update its beliefs as it receives new information. We first show that LLMs fall far short of the standard defined by the Bayesian framework. We then show that by teaching LLMs to mimic the predictions of the normative Bayesian model, we can dramatically improve their ability to update their beliefs; this ability generalizes to new tasks. We conclude that LLMs can effectively learn reasoning skills from examples and generalize those skills to new domains.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-03-21T20:13:04Z</published>
+    <arxiv:comment>Nature Communications</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Linlu Qiu</name>
+    </author>
+    <author>
+      <name>Fei Sha</name>
+    </author>
+    <author>
+      <name>Kelsey Allen</name>
+    </author>
+    <author>
+      <name>Yoon Kim</name>
+    </author>
+    <author>
+      <name>Tal Linzen</name>
+    </author>
+    <author>
+      <name>Sjoerd van Steenkiste</name>
+    </author>
+    <arxiv:doi>10.1038/s41467-025-67998-6</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1038/s41467-025-67998-6" title="doi"/>
+  </entry>
+</feed>
