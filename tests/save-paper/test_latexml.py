@@ -222,6 +222,29 @@ def test_local_names_come_from_the_eprint_relative_path():
     assert f.source_relpath == "figs/leaderboard_vert2.png"
 
 
+def test_inline_graphic_does_not_split_its_paragraph():
+    html = """<article class="ltx_document"><div class="ltx_para"><p class="ltx_p" id="p1">Scaling. <img class="ltx_graphics" src="1.1v1/github-logo.png" alt=""/>Code: https://x</p></div></article>"""
+    r = adapt(html, image_dir="images/x")
+    md = html_to_markdown(r.html)
+    assert "Scaling. ![](images/x/github-logo.png)Code: https://x" in md
+    assert len(r.figures) == 1
+
+
+def test_title_and_author_thanks_footnotes_survive():
+    html = """<article class="ltx_document"><h1 class="ltx_title ltx_title_document">Big Title<span class="ltx_note ltx_role_footnote" id="fn1"><sup class="ltx_note_mark">†</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">†</sup>Equal contribution.</span></span></span></h1>
+    <div class="ltx_authors"><span class="ltx_creator ltx_role_author"><span class="ltx_personname">Ann Lee</span></span>
+    <span class="ltx_author_before">, </span><span class="ltx_creator ltx_role_author"><span class="ltx_personname">Bo Kim</span></span>
+    <span class="ltx_note ltx_role_footnote" id="fn2"><sup class="ltx_note_mark">§</sup><span class="ltx_note_outer"><span class="ltx_note_content"><sup class="ltx_note_mark">§</sup>Work done during an internship.</span></span></span></div>
+    <div class="ltx_para"><p class="ltx_p">Body.</p></div></article>"""
+    r = adapt(html, image_dir="images/x")
+    md = html_to_markdown(r.html)
+    assert r.title == "Big Title"
+    assert md.startswith("# Big Title\n")
+    assert "[^1]: Equal contribution." in md
+    assert "[^2]: Work done during an internship." in md
+    assert re.search(r"^Ann Lee, Bo Kim\[\^\d\]\[\^\d\]$", md, re.M)
+
+
 def test_missing_document_root_raises():
     from savepaper.errors import ConvertError
 

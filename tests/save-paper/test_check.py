@@ -104,6 +104,8 @@ def test_missing_caption_fails_but_missing_math_warning_does_not():
         ("Table\xa01 and\nline", "Table 1 and line"),
         ("x⁡(y)", "x(y)"),
         ("**bold** text", "bold text"),
+        ("LongMemEvalS and x2", "LongMemEval_(S) and x²"),  # pandoc's sub/sup rendering
+        ("scaling. Code: https://x", "scaling. ![](images/x/github-logo.png)Code: https://x"),  # inline icon
     ],
 )
 def test_normalize_ignores_markdown_serialisation_noise(dom, md):
@@ -124,3 +126,7 @@ def test_count_tex_bibitems_from_eprint(tmp_path):
     extract_eprint((FIX / "eprint.tar.gz").read_bytes(), tmp_path / "src")
     assert count_tex_bibitems(tmp_path / "src") == 84
     assert count_tex_bibitems(tmp_path / "nowhere") is None
+    bib = tmp_path / "bibtex"
+    bib.mkdir()
+    (bib / "main.tex").write_text("\\bibliography{refs}")
+    assert count_tex_bibitems(bib) is None  # BibTeX paper: no \bibitem to compare, so no warning

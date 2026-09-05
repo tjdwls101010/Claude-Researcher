@@ -347,9 +347,13 @@ def _figures_and_tables(soup: BeautifulSoup, article: Tag, out: Adapted, image_d
         fig = Figure(id=g.get("id", ""), kind=kind, remote=remote, local="")
         fig.local = f"{image_dir}/{local_name(fig.source_relpath)}.png"
         out.figures.append(fig)
-        p = _new(soup, "p")
-        p.append(_new(soup, "img", src=fig.local, alt=""))
-        g.replace_with(p)
+        img = _new(soup, "img", src=fig.local, alt="")
+        if g.find_parent(["p", "span", "em", "strong", "a", "td", "th", "li", "figcaption"]) is not None and g.find_parent("figure") is None:
+            g.replace_with(img)  # an icon inside a sentence (e.g. a GitHub logo before a URL) must not split the paragraph
+        else:
+            p = _new(soup, "p")
+            p.append(img)
+            g.replace_with(p)
 
     figures = article.select("figure")
     n_fig = sum(1 for f in figures if f.find_parent("figure") is None and _has_class(f, "ltx_figure"))
@@ -474,8 +478,11 @@ def _bibliography(soup: BeautifulSoup, article: Tag) -> int:
 
 def _front_matter(soup: BeautifulSoup, article: Tag) -> str:
     title_el = article.select_one("h1.ltx_title_document") or article.select_one("h1.ltx_title")
-    title = _text(title_el) if title_el else ""
+    title = ""
+    stray_refs: list[Tag] = []  # footnote marks on the title or between authors (thanks, equal contribution)
     if title_el is not None:
+        stray_refs.extend(a.extract() for a in title_el.select("a.footnote-ref"))
+        title = _text(title_el)
         h1 = _new(soup, "h1", title)
         title_el.replace_with(h1)
 
@@ -490,9 +497,19 @@ def _front_matter(soup: BeautifulSoup, article: Tag) -> str:
             refs = "".join(str(a) for a in creator.select("a.footnote-ref"))
             entry = name + (f" ({'; '.join(affs)})" if affs else "")
             parts.append(entry + refs)
+            creator.extract()
+        stray_refs.extend(a.extract() for a in authors.select("a.footnote-ref"))
         p = _new(soup, "p")
         p.append(BeautifulSoup(", ".join(parts), "html.parser"))
+        for a in stray_refs:
+            p.append(a)  # keeps the definition referenced, otherwise pandoc drops the footnote body
+        stray_refs = []
         authors.replace_with(p)
+    elif stray_refs and title_el is not None:
+        p = _new(soup, "p")
+        for a in stray_refs:
+            p.append(a)
+        h1.insert_after(p)
 
     abstract = article.select_one(".ltx_abstract")
     if abstract is not None:

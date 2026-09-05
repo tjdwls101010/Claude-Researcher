@@ -153,18 +153,22 @@ def extract_blocks(html: str) -> tuple[list[Block], dict]:
 
 # --- normalisation ---------------------------------------------------------------
 
-_STRIP_CHARS = str.maketrans("", "", "\\$*_|<>[]#`~")
+_STRIP_CHARS = str.maketrans("", "", "\\$*_|<>[]#`~()^")
 _FOOTNOTE_REF = re.compile(r"\[\^[^\]]+\](?!:)")  # ``[^3]`` in the body; the DOM paragraph never contains the mark
+_IMAGE_LINK = re.compile(r"!\[[^\]]*\]\([^)]*\)")  # an inline graphic has no text in the DOM; its alt is never checked
 
 
 def normalize(text: str) -> str:
     """Collapse everything that Markdown serialisation may legitimately change.
 
-    Whitespace, Markdown escapes/markers, math delimiters and Unicode format
-    characters (zero-width joiners, MathML's invisible operators) all go; what
+    Whitespace, Markdown escapes/markers, math delimiters, the parentheses and
+    carets pandoc adds for ``<sub>``/``<sup>`` (``LongMemEval_(S)``, ``^(†)``) and
+    Unicode format characters (zero-width joiners, MathML's invisible operators)
+    all go, and compatibility characters are folded (``x²`` -> ``x2``); what
     stays is the sequence of visible characters, which pandoc does not alter.
     """
-    text = _FOOTNOTE_REF.sub("", text).translate(_STRIP_CHARS)
+    text = unicodedata.normalize("NFKC", text)
+    text = _IMAGE_LINK.sub("", _FOOTNOTE_REF.sub("", text)).translate(_STRIP_CHARS)
     text = "".join(ch for ch in text if not ch.isspace() and unicodedata.category(ch) != "Cf")
     return text
 
@@ -203,4 +207,5 @@ def count_tex_bibitems(extracted_dir: Path) -> Optional[int]:
     tex_files = list(extracted_dir.rglob("*.tex"))
     if not tex_files:
         return None
-    return sum(len(_BIBITEM_RE.findall(p.read_text("utf-8", "replace"))) for p in tex_files)
+    n = sum(len(_BIBITEM_RE.findall(p.read_text("utf-8", "replace"))) for p in tex_files)
+    return n or None  # a BibTeX-based paper ships .bib, not \bibitem: nothing to compare against
