@@ -243,6 +243,8 @@ def _equations(soup: BeautifulSoup, article: Tag) -> int:
                 if cell.find("math") is None and _text(cell):
                     p.append(NavigableString(_text(cell) + " "))
                     continue
+                if p.contents:
+                    p.append(NavigableString(" "))  # two math cells in one align row must not glue into $$a$$$$b$$
                 _move_children(cell, p)
             if tag_text:
                 p.append(NavigableString(" " + tag_text))
