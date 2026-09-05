@@ -18,7 +18,7 @@ from .frontmatter import parse
 
 MIN_NOTE_CHARS = 3000
 _NUM_RE = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|\d+)\s?(%|×|x\b)?")
-_DISPLAY_MATH_RE = re.compile(r"\$\$(.+?)\$\$", re.S)
+_DISPLAY_MATH_RE = re.compile(r"^\$\$(.+?)\$\$", re.M | re.S)  # anchored: a stray ``$$`` mid-line must not desync the pairing
 _SKIP_LINE = re.compile(r"^\s*(\||!\[|\$\$|#|>|- |\d+\.\s)")
 
 

@@ -127,6 +127,8 @@ def test_missing_caption_fails_but_missing_math_warning_does_not():
         ("**bold** text", "bold text"),
         ("LongMemEvalS and x2", "LongMemEval_(S) and x²"),  # pandoc's sub/sup rendering
         ("scaling. Code: https://x", "scaling. ![](images/x/github-logo.png)Code: https://x"),  # inline icon
+        ("on Hugging Face (openai/healthbench).", "on Hugging Face ([openai/healthbench](https://huggingface.co/datasets/openai/healthbench))."),  # external link
+        ("sim 21 cm^{-1}", "$\\sim 21 cm^{−1}$"),  # unicode minus from pandoc's MathML fallback
     ],
 )
 def test_normalize_ignores_markdown_serialisation_noise(dom, md):

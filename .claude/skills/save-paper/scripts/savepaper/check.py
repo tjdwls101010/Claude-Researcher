@@ -171,6 +171,8 @@ def extract_blocks(html: str) -> tuple[list[Block], dict]:
 _STRIP_CHARS = str.maketrans("", "", "\\$*_|<>[]#`~()^")
 _FOOTNOTE_REF = re.compile(r"\[\^[^\]]+\](?!:)")  # ``[^3]`` in the body; the DOM paragraph never contains the mark
 _IMAGE_LINK = re.compile(r"!\[[^\]]*\]\([^)]*\)")  # an inline graphic has no text in the DOM; its alt is never checked
+_MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")  # ``[text](url)``: the DOM has only the text
+_ASCII_EQUIV = str.maketrans({"\u2212": "-", "\u2010": "-", "\u2011": "-", "\u00a0": " "})  # pandoc's MathML fallback writes a real minus sign
 
 
 def normalize(text: str) -> str:
@@ -182,8 +184,8 @@ def normalize(text: str) -> str:
     all go, and compatibility characters are folded (``x²`` -> ``x2``); what
     stays is the sequence of visible characters, which pandoc does not alter.
     """
-    text = unicodedata.normalize("NFKC", text)
-    text = _IMAGE_LINK.sub("", _FOOTNOTE_REF.sub("", text)).translate(_STRIP_CHARS)
+    text = unicodedata.normalize("NFKC", text).translate(_ASCII_EQUIV)
+    text = _MD_LINK.sub(r"\1", _IMAGE_LINK.sub("", _FOOTNOTE_REF.sub("", text))).translate(_STRIP_CHARS)
     text = "".join(ch for ch in text if not ch.isspace() and unicodedata.category(ch) != "Cf")
     return text
 
