@@ -1,0 +1,295 @@
+<!DOCTYPE html><html><body><article class="ltx_document"><figure class="ltx_table" id="S6.T3">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_table">Table 3: </span>Variations on the Transformer architecture. Unlisted values are identical to those of the base model. All metrics are on the English-to-German translation development set, newstest2013. Listed perplexities are per-wordpiece, according to our byte-pair encoding, and should not be compared to per-word perplexities.</figcaption>
+<table class="ltx_tabular ltx_centering ltx_align_middle" id="S6.T3.2">
+<tbody class="ltx_tbody">
+<tr class="ltx_tr" id="S6.T3.2.1">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.1.1"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.2" rowspan="2"><span class="ltx_text" id="S6.T3.2.1.2.1"><math alttext="N" class="ltx_Math" display="inline" id="S6.T3.m1" intent=":literal"><semantics><mi>N</mi><annotation encoding="application/x-tex">N</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.3" rowspan="2"><span class="ltx_text" id="S6.T3.2.1.3.1"><math alttext="d_{\text{model}}" class="ltx_Math" display="inline" id="S6.T3.m2" intent=":literal"><semantics><msub><mi>d</mi><mtext>model</mtext></msub><annotation encoding="application/x-tex">d_{\text{model}}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.4" rowspan="2"><span class="ltx_text" id="S6.T3.2.1.4.1"><math alttext="d_{\text{ff}}" class="ltx_Math" display="inline" id="S6.T3.m3" intent=":literal"><semantics><msub><mi>d</mi><mtext>ff</mtext></msub><annotation encoding="application/x-tex">d_{\text{ff}}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.5" rowspan="2"><span class="ltx_text" id="S6.T3.2.1.5.1"><math alttext="h" class="ltx_Math" display="inline" id="S6.T3.m4" intent=":literal"><semantics><mi>h</mi><annotation encoding="application/x-tex">h</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.6" rowspan="2"><span class="ltx_text" id="S6.T3.2.1.6.1"><math alttext="d_{k}" class="ltx_Math" display="inline" id="S6.T3.m5" intent=":literal"><semantics><msub><mi>d</mi><mi>k</mi></msub><annotation encoding="application/x-tex">d_{k}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.7" rowspan="2"><span class="ltx_text" id="S6.T3.2.1.7.1"><math alttext="d_{v}" class="ltx_Math" display="inline" id="S6.T3.m6" intent=":literal"><semantics><msub><mi>d</mi><mi>v</mi></msub><annotation encoding="application/x-tex">d_{v}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.8" rowspan="2"><span class="ltx_text" id="S6.T3.2.1.8.1"><math alttext="P_{drop}" class="ltx_Math" display="inline" id="S6.T3.m7" intent=":literal"><semantics><msub><mi>P</mi><mrow><mi>d</mi><mo lspace="0em" rspace="0em">​</mo><mi>r</mi><mo lspace="0em" rspace="0em">​</mo><mi>o</mi><mo lspace="0em" rspace="0em">​</mo><mi>p</mi></mrow></msub><annotation encoding="application/x-tex">P_{drop}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.9" rowspan="2"><span class="ltx_text" id="S6.T3.2.1.9.1"><math alttext="\epsilon_{ls}" class="ltx_Math" display="inline" id="S6.T3.m8" intent=":literal"><semantics><msub><mi>ϵ</mi><mrow><mi>l</mi><mo lspace="0em" rspace="0em">​</mo><mi>s</mi></mrow></msub><annotation encoding="application/x-tex">\epsilon_{ls}</annotation></semantics></math></span></td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.1.10">train</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.11">PPL</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.12">BLEU</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.1.13">params</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.2">
+<td class="ltx_td ltx_border_r" id="S6.T3.2.2.1"></td>
+<td class="ltx_td ltx_align_center ltx_border_r" id="S6.T3.2.2.2">steps</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.2.3">(dev)</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.2.4">(dev)</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.2.5"><math alttext="\times 10^{6}" class="ltx_Math" display="inline" id="S6.T3.m9" intent=":literal"><semantics><mrow><mphantom></mphantom><mo lspace="0.222em" rspace="0.222em">×</mo><msup><mn>10</mn><mn>6</mn></msup></mrow><annotation encoding="application/x-tex">\times 10^{6}</annotation></semantics></math></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.3">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.3.1"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+base</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.2">6</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.3">512</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.4">2048</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.5">8</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.6">64</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.7">64</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.8">0.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.9">0.1</td>
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.3.10">100K</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.11">4.92</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.12">25.8</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.3.13">65</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.4">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.4.1" rowspan="4"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+<span class="ltx_text" id="S6.T3.2.4.1.1">(A)</span></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.4.2"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.4.3"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.4.4"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.4.5">1</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.4.6">512</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.4.7">512</td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.4.8"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.4.9"></td>
+<td class="ltx_td ltx_border_r ltx_border_t" id="S6.T3.2.4.10"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.4.11">5.29</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.4.12">24.9</td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.4.13"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.5">
+<td class="ltx_td" id="S6.T3.2.5.1"></td>
+<td class="ltx_td" id="S6.T3.2.5.2"></td>
+<td class="ltx_td" id="S6.T3.2.5.3"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.5.4">4</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.5.5">128</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.5.6">128</td>
+<td class="ltx_td" id="S6.T3.2.5.7"></td>
+<td class="ltx_td" id="S6.T3.2.5.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.5.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.5.10">5.00</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.5.11">25.5</td>
+<td class="ltx_td" id="S6.T3.2.5.12"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.6">
+<td class="ltx_td" id="S6.T3.2.6.1"></td>
+<td class="ltx_td" id="S6.T3.2.6.2"></td>
+<td class="ltx_td" id="S6.T3.2.6.3"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.6.4">16</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.6.5">32</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.6.6">32</td>
+<td class="ltx_td" id="S6.T3.2.6.7"></td>
+<td class="ltx_td" id="S6.T3.2.6.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.6.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.6.10">4.91</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.6.11">25.8</td>
+<td class="ltx_td" id="S6.T3.2.6.12"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.7">
+<td class="ltx_td" id="S6.T3.2.7.1"></td>
+<td class="ltx_td" id="S6.T3.2.7.2"></td>
+<td class="ltx_td" id="S6.T3.2.7.3"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.7.4">32</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.7.5">16</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.7.6">16</td>
+<td class="ltx_td" id="S6.T3.2.7.7"></td>
+<td class="ltx_td" id="S6.T3.2.7.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.7.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.7.10">5.01</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.7.11">25.4</td>
+<td class="ltx_td" id="S6.T3.2.7.12"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.8">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.8.1" rowspan="2"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+<span class="ltx_text" id="S6.T3.2.8.1.1">(B)</span></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.8.2"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.8.3"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.8.4"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.8.5"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.8.6">16</td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.8.7"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.8.8"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.8.9"></td>
+<td class="ltx_td ltx_border_r ltx_border_t" id="S6.T3.2.8.10"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.8.11">5.16</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.8.12">25.1</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.8.13">58</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.9">
+<td class="ltx_td" id="S6.T3.2.9.1"></td>
+<td class="ltx_td" id="S6.T3.2.9.2"></td>
+<td class="ltx_td" id="S6.T3.2.9.3"></td>
+<td class="ltx_td" id="S6.T3.2.9.4"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.9.5">32</td>
+<td class="ltx_td" id="S6.T3.2.9.6"></td>
+<td class="ltx_td" id="S6.T3.2.9.7"></td>
+<td class="ltx_td" id="S6.T3.2.9.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.9.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.9.10">5.01</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.9.11">25.4</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.9.12">60</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.10">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.10.1" rowspan="7"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+<span class="ltx_text" id="S6.T3.2.10.1.1">(C)</span></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.10.2">2</td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.10.3"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.10.4"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.10.5"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.10.6"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.10.7"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.10.8"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.10.9"></td>
+<td class="ltx_td ltx_border_r ltx_border_t" id="S6.T3.2.10.10"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.10.11">6.11</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.10.12">23.7</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.10.13">36</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.11">
+<td class="ltx_td ltx_align_center" id="S6.T3.2.11.1">4</td>
+<td class="ltx_td" id="S6.T3.2.11.2"></td>
+<td class="ltx_td" id="S6.T3.2.11.3"></td>
+<td class="ltx_td" id="S6.T3.2.11.4"></td>
+<td class="ltx_td" id="S6.T3.2.11.5"></td>
+<td class="ltx_td" id="S6.T3.2.11.6"></td>
+<td class="ltx_td" id="S6.T3.2.11.7"></td>
+<td class="ltx_td" id="S6.T3.2.11.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.11.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.11.10">5.19</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.11.11">25.3</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.11.12">50</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.12">
+<td class="ltx_td ltx_align_center" id="S6.T3.2.12.1">8</td>
+<td class="ltx_td" id="S6.T3.2.12.2"></td>
+<td class="ltx_td" id="S6.T3.2.12.3"></td>
+<td class="ltx_td" id="S6.T3.2.12.4"></td>
+<td class="ltx_td" id="S6.T3.2.12.5"></td>
+<td class="ltx_td" id="S6.T3.2.12.6"></td>
+<td class="ltx_td" id="S6.T3.2.12.7"></td>
+<td class="ltx_td" id="S6.T3.2.12.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.12.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.12.10">4.88</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.12.11">25.5</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.12.12">80</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.13">
+<td class="ltx_td" id="S6.T3.2.13.1"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.13.2">256</td>
+<td class="ltx_td" id="S6.T3.2.13.3"></td>
+<td class="ltx_td" id="S6.T3.2.13.4"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.13.5">32</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.13.6">32</td>
+<td class="ltx_td" id="S6.T3.2.13.7"></td>
+<td class="ltx_td" id="S6.T3.2.13.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.13.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.13.10">5.75</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.13.11">24.5</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.13.12">28</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.14">
+<td class="ltx_td" id="S6.T3.2.14.1"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.14.2">1024</td>
+<td class="ltx_td" id="S6.T3.2.14.3"></td>
+<td class="ltx_td" id="S6.T3.2.14.4"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.14.5">128</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.14.6">128</td>
+<td class="ltx_td" id="S6.T3.2.14.7"></td>
+<td class="ltx_td" id="S6.T3.2.14.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.14.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.14.10">4.66</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.14.11">26.0</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.14.12">168</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.15">
+<td class="ltx_td" id="S6.T3.2.15.1"></td>
+<td class="ltx_td" id="S6.T3.2.15.2"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.15.3">1024</td>
+<td class="ltx_td" id="S6.T3.2.15.4"></td>
+<td class="ltx_td" id="S6.T3.2.15.5"></td>
+<td class="ltx_td" id="S6.T3.2.15.6"></td>
+<td class="ltx_td" id="S6.T3.2.15.7"></td>
+<td class="ltx_td" id="S6.T3.2.15.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.15.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.15.10">5.12</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.15.11">25.4</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.15.12">53</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.16">
+<td class="ltx_td" id="S6.T3.2.16.1"></td>
+<td class="ltx_td" id="S6.T3.2.16.2"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.16.3">4096</td>
+<td class="ltx_td" id="S6.T3.2.16.4"></td>
+<td class="ltx_td" id="S6.T3.2.16.5"></td>
+<td class="ltx_td" id="S6.T3.2.16.6"></td>
+<td class="ltx_td" id="S6.T3.2.16.7"></td>
+<td class="ltx_td" id="S6.T3.2.16.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.16.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.16.10">4.75</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.16.11">26.2</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.16.12">90</td></tr>
+<tr class="ltx_tr" id="S6.T3.2.17">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.17.1" rowspan="4"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+<span class="ltx_text" id="S6.T3.2.17.1.1">(D)</span></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.17.2"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.17.3"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.17.4"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.17.5"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.17.6"></td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.17.7"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.17.8">0.0</td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.17.9"></td>
+<td class="ltx_td ltx_border_r ltx_border_t" id="S6.T3.2.17.10"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.17.11">5.77</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.17.12">24.6</td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.17.13"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.18">
+<td class="ltx_td" id="S6.T3.2.18.1"></td>
+<td class="ltx_td" id="S6.T3.2.18.2"></td>
+<td class="ltx_td" id="S6.T3.2.18.3"></td>
+<td class="ltx_td" id="S6.T3.2.18.4"></td>
+<td class="ltx_td" id="S6.T3.2.18.5"></td>
+<td class="ltx_td" id="S6.T3.2.18.6"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.18.7">0.2</td>
+<td class="ltx_td" id="S6.T3.2.18.8"></td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.18.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.18.10">4.95</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.18.11">25.5</td>
+<td class="ltx_td" id="S6.T3.2.18.12"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.19">
+<td class="ltx_td" id="S6.T3.2.19.1"></td>
+<td class="ltx_td" id="S6.T3.2.19.2"></td>
+<td class="ltx_td" id="S6.T3.2.19.3"></td>
+<td class="ltx_td" id="S6.T3.2.19.4"></td>
+<td class="ltx_td" id="S6.T3.2.19.5"></td>
+<td class="ltx_td" id="S6.T3.2.19.6"></td>
+<td class="ltx_td" id="S6.T3.2.19.7"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.19.8">0.0</td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.19.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.19.10">4.67</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.19.11">25.3</td>
+<td class="ltx_td" id="S6.T3.2.19.12"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.20">
+<td class="ltx_td" id="S6.T3.2.20.1"></td>
+<td class="ltx_td" id="S6.T3.2.20.2"></td>
+<td class="ltx_td" id="S6.T3.2.20.3"></td>
+<td class="ltx_td" id="S6.T3.2.20.4"></td>
+<td class="ltx_td" id="S6.T3.2.20.5"></td>
+<td class="ltx_td" id="S6.T3.2.20.6"></td>
+<td class="ltx_td" id="S6.T3.2.20.7"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.20.8">0.2</td>
+<td class="ltx_td ltx_border_r" id="S6.T3.2.20.9"></td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.20.10">5.47</td>
+<td class="ltx_td ltx_align_center" id="S6.T3.2.20.11">25.7</td>
+<td class="ltx_td" id="S6.T3.2.20.12"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.21">
+<td class="ltx_td ltx_align_center ltx_border_r ltx_border_t" id="S6.T3.2.21.1"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+(E)</td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.21.2"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" colspan="7" id="S6.T3.2.21.3">positional embedding instead of sinusoids</td>
+<td class="ltx_td ltx_border_r ltx_border_t" id="S6.T3.2.21.4"></td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.21.5">4.92</td>
+<td class="ltx_td ltx_align_center ltx_border_t" id="S6.T3.2.21.6">25.7</td>
+<td class="ltx_td ltx_border_t" id="S6.T3.2.21.7"></td></tr>
+<tr class="ltx_tr" id="S6.T3.2.22">
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t" id="S6.T3.2.22.1"><span class="ltx_rule" style="width:0.0pt;height:8.6pt;--ltx-bg-color:black;display:inline-block;"></span>
+big</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t" id="S6.T3.2.22.2">6</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t" id="S6.T3.2.22.3">1024</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t" id="S6.T3.2.22.4">4096</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t" id="S6.T3.2.22.5">16</td>
+<td class="ltx_td ltx_border_b ltx_border_t" id="S6.T3.2.22.6"></td>
+<td class="ltx_td ltx_border_b ltx_border_t" id="S6.T3.2.22.7"></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t" id="S6.T3.2.22.8">0.3</td>
+<td class="ltx_td ltx_border_b ltx_border_t" id="S6.T3.2.22.9"></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_r ltx_border_t" id="S6.T3.2.22.10">300K</td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t" id="S6.T3.2.22.11"><span class="ltx_text ltx_font_bold" id="S6.T3.2.22.11.1">4.33</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t" id="S6.T3.2.22.12"><span class="ltx_text ltx_font_bold" id="S6.T3.2.22.12.1">26.4</span></td>
+<td class="ltx_td ltx_align_center ltx_border_b ltx_border_t" id="S6.T3.2.22.13">213</td></tr>
+</tbody>
+</table>
+</figure></article></body></html>

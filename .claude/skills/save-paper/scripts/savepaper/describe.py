@@ -32,6 +32,8 @@ CONTEXT_CHARS = 1111
 PROMPT_PATH = Path(__file__).with_name("describe_prompt.md")
 ENV_KEY = "OPENROUTER_API_KEY"
 ENV_MODEL = "OPENROUTER_MODEL"
+ENV_EFFORT = "OPENROUTER_REASONING_EFFORT"  # none | low | medium | high | xhigh | max
+ENV_MAX_TOKENS = "OPENROUTER_MAX_TOKENS"  # raise together with effort: max measured ~12,452 reasoning tokens
 LOCAL_ENV = Path(__file__).with_name(".env")  # next to the code, gitignored; .env.example beside it documents the keys
 
 _IMG_RE = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<path>[^)\s]+\.(?:png|jpe?g|gif|webp))\)", re.IGNORECASE)
@@ -85,6 +87,18 @@ def default_model(env_file: Optional[Path] = None) -> str:
     return load_setting(ENV_MODEL, files) or DEFAULT_MODEL
 
 
+def request_settings(env_file: Optional[Path] = None) -> dict:
+    """``reasoning.effort`` and ``max_tokens`` for the OpenRouter call, from the environment or ``.env``."""
+    files = [LOCAL_ENV] + ([env_file] if env_file is not None else [])
+    effort = load_setting(ENV_EFFORT, files) or REASONING_EFFORT
+    raw = load_setting(ENV_MAX_TOKENS, files)
+    try:
+        max_tokens = int(raw) if raw else MAX_TOKENS
+    except ValueError:
+        max_tokens = MAX_TOKENS
+    return {"effort": effort, "max_tokens": max_tokens}
+
+
 def sanitize_alt(text: str) -> str:
     """One line, no square brackets: real newlines become the two characters ``\\n``, brackets become parentheses."""
     text = re.sub(r"\r\n?", "\n", text)
@@ -94,12 +108,12 @@ def sanitize_alt(text: str) -> str:
     return text.strip()
 
 
-def build_request(model: str, prompt: str, image_bytes: bytes, mime: str) -> dict:
+def build_request(model: str, prompt: str, image_bytes: bytes, mime: str, effort: str = REASONING_EFFORT, max_tokens: int = MAX_TOKENS) -> dict:
     return {
         "model": model,
         "provider": PROVIDER_PREFS,
-        "reasoning": {"effort": REASONING_EFFORT},
-        "max_tokens": MAX_TOKENS,
+        "reasoning": {"effort": effort},
+        "max_tokens": max_tokens,
         "usage": {"include": True},
         "messages": [
             {
@@ -135,13 +149,13 @@ def parse_response(data: dict) -> str:
     if data.get("error"):
         msg = data["error"].get("message") or json.dumps(data["error"])
         if re.search("credits", msg, re.I):
-            msg = f"OpenRouter credits insufficient (MAX_TOKENS={MAX_TOKENS} is reserved per request). {msg}"
+            msg = f"OpenRouter credits insufficient (max_tokens is reserved up front per request; lower OPENROUTER_MAX_TOKENS in .env). {msg}"
         raise RuntimeError(msg)
     choice = (data.get("choices") or [{}])[0]
     content = (choice.get("message") or {}).get("content")
     if not content:
         if choice.get("finish_reason") == "length":
-            raise RuntimeError(f"reasoning used the whole token budget ({MAX_TOKENS}); lower effort or raise MAX_TOKENS")
+            raise RuntimeError("reasoning used the whole token budget (max_tokens); lower OPENROUTER_REASONING_EFFORT or raise OPENROUTER_MAX_TOKENS in .env")
         raise RuntimeError(f"empty response: {json.dumps(data)[:300]}")
     desc = json.loads(content).get("description", "")
     desc = sanitize_alt(desc)
@@ -173,6 +187,7 @@ def describe_markdown(
             return r.json()
 
     model = model or default_model()
+    settings = request_settings()
     template = prompt_template if prompt_template is not None else PROMPT_PATH.read_text(encoding="utf-8")
     text = md_path.read_text(encoding="utf-8")
     fm, body = parse(text)
@@ -194,7 +209,7 @@ def describe_markdown(
         after = body[m.end() : m.end() + CONTEXT_CHARS].strip()
         prompt = template.replace("{context_before}", before).replace("{context_after}", after).replace("{image_path}", rel)
         try:
-            data = post(build_request(model, prompt, img_path.read_bytes(), _mime(img_path)))
+            data = post(build_request(model, prompt, img_path.read_bytes(), _mime(img_path), **settings))
             desc = parse_response(data)
         except Exception as exc:  # network, API, schema -- all leave the alt empty and are counted
             stats.failed += 1

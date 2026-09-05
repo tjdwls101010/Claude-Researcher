@@ -181,6 +181,7 @@ def adapt(html: str, image_dir: str) -> Adapted:
     # as text (listings), then figures/tables, then everything else.
     counts["footnotes"] = _footnotes(soup, article)
     counts["equations"] = _equations(soup, article)
+    _span_tables(soup, article)
     _foreign_objects(soup, article, out)
     counts["listings"] = _listings(soup, article)
     _theorems(soup, article)
@@ -256,6 +257,36 @@ def _equations(soup: BeautifulSoup, article: Tag) -> int:
             container.insert_before(p)
         container.decompose()
     return count
+
+
+_SPAN_TABLE_TAGS = {"ltx_tabular": "table", "ltx_thead": "thead", "ltx_tbody": "tbody", "ltx_tfoot": "tfoot", "ltx_tr": "tr", "ltx_td": "td"}
+
+
+def _span_tables(soup: BeautifulSoup, article: Tag) -> None:
+    """A table inside ``\\resizebox``/``\\scalebox`` (or any inline context) comes out of LaTeXML as
+    ``<span class=ltx_tabular><span class=ltx_tr><span class=ltx_td>`` -- no table elements at all,
+    so pandoc sees one run of inline text (2608.25593 Table 2, 2503.17523 appendix tables).
+    Rebuild the real elements; ``ltx_colspan_N`` carries the span width."""
+    for el in article.find_all("span", class_=_SPAN_TABLE_TAGS.keys()):
+        cls = _classes(el)
+        for c, name in _SPAN_TABLE_TAGS.items():
+            if c in cls:
+                el.name = name
+                break
+        if el.name == "td":
+            if "ltx_th" in cls:
+                el.name = "th"
+            for c in cls:
+                m = re.fullmatch(r"ltx_colspan_(\d+)", c)
+                if m:
+                    el["colspan"] = m.group(1)
+    # a <table> must not sit inside <p>/<span>: lift it out so the HTML parser keeps it whole
+    for table in article.find_all("table"):
+        block = table
+        while block.parent is not None and block.parent.name in ("p", "span", "em", "strong"):
+            block = block.parent
+        if block is not table:
+            block.insert_before(table.extract())
 
 
 def _foreign_objects(soup: BeautifulSoup, article: Tag, out: Adapted) -> None:
@@ -393,8 +424,10 @@ def _flatten_cells(soup: BeautifulSoup, table: Tag) -> None:
     nested table makes pandoc emit the literal ``[TABLE]`` and drop every cell (measured on
     2503.17523's transcript tables). Flatten such cells to one inline run instead."""
     for inner in table.find_all("table"):
-        rows = [" | ".join(_text(c) for c in tr.find_all(["td", "th"])) for tr in inner.find_all("tr")]
-        inner.replace_with(NavigableString(" ; ".join(r for r in rows if r)))
+        # a table inside a cell is almost always a line-breaking trick (\\makecell, a two-row header):
+        # join with spaces so the cell reads as the phrase it was, and the coverage check still matches it
+        rows = [" ".join(_text(c) for c in tr.find_all(["td", "th"])) for tr in inner.find_all("tr")]
+        inner.replace_with(NavigableString(" ".join(r for r in rows if r)))
     for cell in table.find_all(["td", "th"]):
         for br in cell.find_all("br"):
             br.replace_with(NavigableString(" "))
@@ -403,6 +436,12 @@ def _flatten_cells(soup: BeautifulSoup, table: Tag) -> None:
             block.unwrap()
     _expand_rowspans(soup, table)
     _mark_row_groups(soup, table)
+    for th in table.find_all("th"):
+        # a <th> in the body (LaTeXML row headers, or a header cell cloned down by rowspan) makes
+        # pandoc read a multi-row header, which no pipe table can carry: the whole table then
+        # degrades to one paragraph per cell (1706.03762, Table 3).
+        if th.find_parent("thead") is None:
+            th.name = "td"
 
 
 def _expand_rowspans(soup: BeautifulSoup, table: Tag) -> None:
@@ -451,7 +490,9 @@ def _mark_row_groups(soup: BeautifulSoup, table: Tag) -> None:
 
 
 def _promote_header(soup: BeautifulSoup, table: Tag) -> None:
-    if table.find("thead") is not None or table.find("th") is not None:
+    """Give every table a <thead>: pandoc otherwise emits an empty header row, and a first row that
+    LaTeXML already marked with <th> would be demoted to the body by the multi-row-header guard."""
+    if table.find("thead") is not None:
         return
     first = table.find("tr")
     if first is None:
@@ -459,7 +500,8 @@ def _promote_header(soup: BeautifulSoup, table: Tag) -> None:
     for td in first.find_all("td", recursive=False):
         td.name = "th"
     thead = _new(soup, "thead")
-    first.insert_before(thead)
+    anchor = first.parent if first.parent is not None and first.parent.name == "tbody" else first
+    anchor.insert_before(thead)  # a <thead> nested inside <tbody> is invalid and makes pandoc drop the table
     thead.append(first.extract())
 
 

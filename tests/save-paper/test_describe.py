@@ -120,3 +120,9 @@ def test_settings_come_from_env_then_code_local_dotenv_then_project_dotenv(tmp_p
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-env")
     assert load_api_key(root) == "sk-or-env"  # the environment wins over both files
     assert (Path(d.__file__).parent / ".env.example").read_text().startswith("# Copy to .env")
+    # reasoning effort and max_tokens follow the same lookup
+    assert d.request_settings(root) == {"effort": "high", "max_tokens": 16000}
+    local.write_text("OPENROUTER_REASONING_EFFORT=max\nOPENROUTER_MAX_TOKENS=32000\n")
+    assert d.request_settings(root) == {"effort": "max", "max_tokens": 32000}
+    monkeypatch.setenv("OPENROUTER_REASONING_EFFORT", "low")
+    assert d.request_settings(root)["effort"] == "low"

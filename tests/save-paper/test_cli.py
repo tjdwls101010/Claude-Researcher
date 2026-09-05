@@ -49,6 +49,10 @@ def test_index_command_writes_readme(tmp_path):
 
 
 def test_describe_without_key_exits_7(tmp_path, monkeypatch):
+    from savepaper.describe import LOCAL_ENV
+
+    if LOCAL_ENV.exists():
+        pytest.skip("a real .env sits beside the code; the no-key path cannot be exercised here")
     papers = tmp_path / "papers" / "sources"
     papers.mkdir(parents=True)
     (papers / "1.1.md").write_text("---\ntype: Paper\n---\n\n![](images/x.png)\n")

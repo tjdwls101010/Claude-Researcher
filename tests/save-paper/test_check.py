@@ -86,6 +86,16 @@ def test_removed_bibitem_is_reported(page, markdown):
     assert any(m["kind"] == "bibitem" for m in report.missing)
 
 
+def test_table_rendered_as_paragraphs_is_a_warning(page, markdown):
+    """Cells survive as loose paragraphs, so coverage stays 1.0, but the reader can no longer attribute them."""
+    degraded = markdown.replace("|", " ")  # every pipe table collapses to text
+    report = check(page, degraded)
+    assert report.passed  # completeness unchanged
+    assert any("did not come out as a pipe table" in w for w in report.warnings)
+    assert report.counts["data_tables"] == 12
+    assert not any("pipe table" in w for w in check(page, markdown).warnings)
+
+
 def test_missing_caption_fails_but_missing_math_warning_does_not():
     html = """<article class="ltx_document">
     <p class="ltx_p" id="p1">Hello <math class="ltx_math_unparsed"><semantics><mi>x</mi><annotation encoding="application/x-tex">\\weird{x}</annotation></semantics></math> world.</p>

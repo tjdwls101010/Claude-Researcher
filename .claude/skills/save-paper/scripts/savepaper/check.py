@@ -147,6 +147,16 @@ def extract_blocks(html: str) -> tuple[list[Block], dict]:
         "equations": len(root.select(".ltx_equation.ltx_eqn_row")) or len(root.select(".ltx_equation")),
         "listings": len(root.select(".ltx_listing")),
         "unparsed_math": len(root.select("math.ltx_math_unparsed")),
+        # real data tables: not equation layout tables, and only the outermost of nested ones
+        "data_tables": len(
+            [
+                t
+                for t in root.find_all(["table", "span"], class_="ltx_tabular")  # span-based tables come from \\resizebox
+                if not (_classes(t) & {"ltx_equation", "ltx_equationgroup", "ltx_eqn_table"})
+                and t.find_parent(class_="ltx_tabular") is None
+                and t.find_parent(class_="ltx_equation") is None
+            ]
+        ),
     }
     return blocks, counts
 
@@ -187,6 +197,12 @@ def check(html: str, markdown: str, tex_bibitems: Optional[int] = None) -> Repor
             report.missing.append({"id": b.id, "kind": b.kind, "preview": b.preview()})
     if counts["unparsed_math"]:
         report.warnings.append(f"{counts['unparsed_math']} math element(s) LaTeXML could not parse (TeX kept verbatim)")
+    dom_tables = counts.get("data_tables", 0)
+    md_tables = len(_PIPE_SEPARATOR.findall(markdown))
+    if md_tables < dom_tables:
+        report.warnings.append(
+            f"{dom_tables - md_tables} of {dom_tables} table(s) did not come out as a pipe table (cells present, but as loose paragraphs; rows and columns cannot be attributed)"
+        )
     if tex_bibitems is not None and counts["bibitems"] and tex_bibitems != counts["bibitems"]:
         report.warnings.append(
             f"TeX sources declare {tex_bibitems} \\bibitem entries but the HTML has {counts['bibitems']}; the HTML may not be the whole paper"
@@ -194,6 +210,7 @@ def check(html: str, markdown: str, tex_bibitems: Optional[int] = None) -> Repor
     return report
 
 
+_PIPE_SEPARATOR = re.compile(r"^\|(?:\s*:?-+:?\s*\|)+\s*$", re.M)
 _BIBITEM_RE = re.compile(r"\\bibitem\b")
 
 

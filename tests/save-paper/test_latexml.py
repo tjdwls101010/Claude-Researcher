@@ -118,6 +118,25 @@ def test_rowspan_category_is_repeated_on_each_row_and_groups_are_separated():
     assert re.search(r"^\|\s+\|\s+\|$", md, re.M)
 
 
+def test_rowspan_header_cells_do_not_break_the_pipe_table():
+    """1706.03762 Table 3: header cells with rowspan=2 above a sub-header row."""
+    _, md = md_of("table_rowspan_header")
+    rows = [l for l in md.splitlines() if l.startswith("|")]
+    assert len(rows) >= 15
+    assert any("base" in r and "512" in r and "2048" in r and "25.8" in r for r in rows)
+    assert any("$d_{\\text{model}}$" in r and "BLEU" in r for r in rows)
+    assert not re.search(r"^\$N\$$", md, re.M)  # no cell-per-paragraph fallback
+
+
+def test_span_based_table_from_resizebox_becomes_a_pipe_table():
+    """2608.25593 Table 2: LaTeXML emits <span class=ltx_tabular/ltx_tr/ltx_td> for a scaled table."""
+    _, md = md_of("table_span_based")
+    rows = [l for l in md.splitlines() if l.startswith("|")]
+    assert len(rows) >= 8
+    assert any("Model" in r and "Deep Research" in r for r in rows)
+    assert not re.search(r"^\*\*Model\*\* \*\*Deep Research\*\*", md, re.M)  # the one-line collapse
+
+
 def test_table_with_colspan_headers_keeps_every_cell():
     _, md = md_of("table_guessed")
     for cell in ["In-Domain Tasks", "Unseen Tasks", "gemma-3-27b-it", "39.8", "GPQA-D", "Avg."]:
