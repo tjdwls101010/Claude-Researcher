@@ -88,7 +88,28 @@ OpenRouter chat completions, model `openai/gpt-5.6-luna`, `reasoning.effort: hig
 - Korean notes for the same 5 papers: `note-check` passes; per-paper review table (source visually complete, 3 alt-texts checked against figures for guessing, 3 numbers + 1 equation + 1 limitation checked against source, codex cross-check for mismatches); 성진's judgment whether the note alone explains the paper.
 - Headless e2e is not run in this pass. Skill triggering is confirmed in-session with "이 논문 저장해줘 <url>".
 
-Most recent run: not yet run.
+Most recent run (2026-09-05, implementation session):
+
+- `python3 -m pytest tests/save-paper -q` → 144 passed.
+- `validate_harness.py --path . --strict` → exit 0; `audit_harness.py` → no drift.
+- Offline e2e (recorded 2503.17523v3): coverage 1.0, 28/28 PNG, 84 bibitems, `verified` present.
+- Online, real arXiv, `batch` (describe off — no `OPENROUTER_API_KEY` on this machine yet):
+
+| id | v | route | coverage | verified | figures | losses |
+|---|---|---|---|---|---|---|
+| 2608.18300 | 3 | html | 1.0 | yes | 3/3 | unparsed math kept as TeX: 3 |
+| 2608.20614 | 1 | html | 1.0 | yes | 5/5 | — |
+| 2608.21690 | 1 | html | 1.0 | yes | 4/4 | — |
+| 2608.25593 | 2 | html | 1.0 | yes | 16/16 | unparsed math kept as TeX: 2 |
+| 2608.23552 | 1 | html | 1.0 | yes | 11/11 | — |
+| 2607.05775 | 1 | pdf | — | no | — | math, figures (PDF-only paper, as expected) |
+| 1706.03762 | 7 | html | 1.0 | yes | 8/8 | — |
+
+The first online pass left three papers at exit 6 (coverage 0.98–0.997); every miss was a real adapter gap the check caught — pandoc's `<sub>`/`<sup>` rendering (`LongMemEval_(S)`), an inline GitHub icon splitting the abstract paragraph, and title/author "equal contribution" footnotes dropped as unreferenced — fixed and re-saved with `--force` to coverage 1.0. Images total 10 MB for 7 papers (7.6 MB from one 16-figure paper); the git-LFS question from the plan stays open until the tree passes ~100 MB.
+
+- `--describe` real run: **not done** — no OpenRouter key on this machine; cost per paper still unmeasured (estimate from the plan: $1–2 per 30 figures at reasoning=high).
+- Korean notes: see the table appended below once the `paper-note` runs finish.
+- Skill triggering: `save-paper` appears in this session's skill listing with its description after SKILL.md was written (the listing refreshed in-session); a fresh-session trigger test with "이 논문 저장해줘 <url>" is still owed. The `paper-note` agent file does not load into an already-running session, so the in-session note runs used a general-purpose opus agent told to read and follow the agent body.
 
 ## Change history
 
