@@ -78,6 +78,33 @@ def test_extract_rejects_oversized_member(tmp_path):
     assert "size" in result.rejected[0]["reason"]
 
 
+def test_extract_stops_after_member_cap(tmp_path):
+    data = make_tar({f"f{i}.tex": b"x" for i in range(5)})
+    result = extract_eprint(data, tmp_path / "src", max_members=3)
+    assert len(result.files) == 3
+    assert "members" in result.rejected[0]["reason"]
+
+
+def test_extract_single_gzipped_tex_respects_cap(tmp_path):
+    import gzip
+
+    result = extract_eprint(gzip.compress(b"x" * 4096), tmp_path / "src", max_file_bytes=1024)
+    assert result.files == []
+    assert result.rejected[0]["reason"].startswith("size")
+
+
+def test_extract_refuses_symlinked_destination_component(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "figures").symlink_to(outside)
+    result = extract_eprint(make_tar({"figures/plot.pdf": b"%PDF"}), src)
+    assert result.files == []
+    assert result.rejected[0]["reason"] == "resolves outside destination"
+    assert not (outside / "plot.pdf").exists()
+
+
 def test_extract_single_gzipped_tex(tmp_path):
     import gzip
 
@@ -94,6 +121,18 @@ def test_extract_pdf_only_eprint(tmp_path):
 
 
 # --- rendering --------------------------------------------------------------------
+
+
+def test_find_source_prefers_exact_relative_path_and_refuses_ambiguous_basename(tmp_path):
+    from savepaper.assets import find_source
+
+    for rel in ["old/plot.pdf", "new/plot.png", "only/one.pdf", "a/dup.pdf", "b/dup.pdf"]:
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_bytes(b"x")
+    assert find_source(tmp_path, "new/plot.png") == tmp_path / "new/plot.png"
+    assert find_source(tmp_path, "old/plot.svg") == tmp_path / "old/plot.pdf"
+    assert find_source(tmp_path, "one.svg") == tmp_path / "only/one.pdf"  # unique basename anywhere
+    assert find_source(tmp_path, "dup.svg") is None  # two candidates in different dirs: do not guess
 
 
 def test_pdf_to_png_renders_a_real_png(tmp_path):
@@ -163,6 +202,28 @@ def test_materialize_fetches_remote_png_when_eprint_has_no_original(tmp_path):
     results = materialize(figs()[:1], tmp_path / "src", tmp_path / "out", lambda remote: (FIX / "fig1_task.png").read_bytes())
     assert results[0].status == "remote"
     assert results[0].path.read_bytes()[:8] == PNG_MAGIC
+
+
+def test_materialize_falls_back_to_remote_when_pdf_render_fails(tmp_path, monkeypatch):
+    (tmp_path / "src" / "figures").mkdir(parents=True)
+    (tmp_path / "src" / "figures" / "fig2_eval_results.pdf").write_bytes(b"%PDF-1.4 broken")
+    fetched = []
+
+    def fetch_remote(remote):
+        fetched.append(remote)
+        return b"<svg xmlns='http://www.w3.org/2000/svg'></svg>"
+
+    results = materialize(figs()[1:2], tmp_path / "src", tmp_path / "out", fetch_remote)
+    assert results[0].status == "svg-fallback"
+    assert fetched == ["2503.17523v3/fig2_eval_results.svg"]
+    assert "pdftoppm failed" in results[0].note
+
+
+def test_materialize_writes_inline_picture_svg(tmp_path):
+    fig = Figure(id="S1.pic1", kind="picture", remote="", local="images/x/S1.pic1.svg", inline_svg="<svg xmlns='http://www.w3.org/2000/svg'><text>hi</text></svg>")
+    results = materialize([fig], tmp_path / "src", tmp_path / "out", lambda remote: None)
+    assert results[0].status == "inline-svg"
+    assert (tmp_path / "out" / "images/x/S1.pic1.svg").read_text().startswith("<svg")
 
 
 def test_materialize_marks_missing_when_nothing_is_available(tmp_path):

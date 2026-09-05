@@ -192,6 +192,25 @@ def test_refs_and_cites_keep_text_only():
     assert "](#" not in md
 
 
+def test_drawn_picture_becomes_an_inline_svg_asset():
+    html = """<article class="ltx_document"><div class="ltx_para"><p class="ltx_p">See the diagram.</p>
+    <svg class="ltx_picture" id="S1.pic1" viewBox="0 0 10 10"><g><path d="M0 0L10 10"/><text>A</text></g></svg></div></article>"""
+    r = adapt(html, image_dir="images/x")
+    assert len(r.figures) == 1 and r.figures[0].kind == "picture"
+    assert r.figures[0].local == "images/x/S1.pic1.svg"
+    assert r.figures[0].inline_svg.startswith("<svg")
+    assert "![](images/x/S1.pic1.svg)" in html_to_markdown(r.html)
+
+
+def test_local_names_come_from_the_eprint_relative_path():
+    from savepaper.latexml import Figure, local_name
+
+    assert local_name("fig1_task.png") == "fig1_task"
+    assert local_name("figs/leaderboard_vert2.png") == "figs_leaderboard_vert2"
+    f = Figure(id="", kind="img", remote="2512.04388v5/figs/leaderboard_vert2.png", local="")
+    assert f.source_relpath == "figs/leaderboard_vert2.png"
+
+
 def test_missing_document_root_raises():
     from savepaper.errors import ConvertError
 

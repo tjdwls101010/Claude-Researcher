@@ -50,18 +50,33 @@ class Figure:
     ``remote`` is the DOM's ``src``/``data`` (relative to ``https://arxiv.org/html/``);
     ``local`` is where the Markdown expects it (always ``.png`` -- ``assets.py``
     may fall back to another suffix, then ``rewrite_figure_paths`` fixes the HTML).
+    ``inline_svg`` carries a LaTeXML-drawn picture (tikz etc.) that exists nowhere
+    but in the page; ``remote`` is empty for those.
     """
 
     id: str
-    kind: str  # "img" | "object"
+    kind: str  # "img" | "object" | "picture"
     remote: str
     local: str
+    inline_svg: str | None = None
+
+    @property
+    def source_relpath(self) -> str:
+        """``remote`` minus the leading ``<id>v<n>/`` -- the path as the e-print knows it."""
+        parts = PurePosixPath(self.remote).parts
+        return str(PurePosixPath(*parts[1:])) if len(parts) > 1 else self.remote
+
+
+def local_name(relpath: str) -> str:
+    """Flatten ``figs/plot.png`` to ``figs_plot`` so two ``plot.png`` in different directories never collide."""
+    return "_".join(PurePosixPath(relpath).with_suffix("").parts)
 
 
 @dataclass
 class Adapted:
     html: str
     title: str
+    image_dir: str = ""
     figures: list[Figure] = field(default_factory=list)
     unparsed_math: int = 0
     pictures_dropped: int = 0
@@ -153,7 +168,7 @@ def adapt(html: str, image_dir: str) -> Adapted:
     article = soup.select_one("article.ltx_document")
     if article is None:
         raise ConvertError("no <article class=ltx_document> in HTML; not a LaTeXML page")
-    out = Adapted(html="", title="")
+    out = Adapted(html="", title="", image_dir=image_dir)
     counts = out.counts
 
     for sel in _DROP_SELECTORS:
@@ -252,9 +267,22 @@ def _foreign_objects(soup: BeautifulSoup, article: Tag, out: Adapted) -> None:
             content = fo.select_one(".ltx_foreignobject_content") or fo
             _move_children(content, div)
         svg.replace_with(div)
-    for svg in article.select("svg.ltx_picture"):
+    # Anything still drawn as SVG (tikz, pgfplots) exists only in this page: keep the markup as an asset.
+    for n, svg in enumerate(article.select("svg.ltx_picture"), start=1):
         out.pictures_dropped += 1
-        svg.decompose()
+        markup = str(svg)
+        if 'xmlns=' not in markup[:200]:
+            markup = markup.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"', 1)
+        pid = svg.get("id") or f"picture{n}"
+        fig = Figure(id=pid, kind="picture", remote="", local=f"{_image_dir_of(out)}/{pid}.svg", inline_svg=markup)
+        out.figures.append(fig)
+        p = _new(soup, "p")
+        p.append(_new(soup, "img", src=fig.local, alt=""))
+        svg.replace_with(p)
+
+
+def _image_dir_of(out: Adapted) -> str:
+    return out.image_dir
 
 
 def _listings(soup: BeautifulSoup, article: Tag) -> int:
@@ -313,23 +341,22 @@ def _figures_and_tables(soup: BeautifulSoup, article: Tag, out: Adapted, image_d
         if not remote:
             g.decompose()
             continue
-        stem = PurePosixPath(remote).stem
-        local = f"{image_dir}/{stem}.png"
-        out.figures.append(Figure(id=g.get("id", ""), kind=kind, remote=remote, local=local))
+        fig = Figure(id=g.get("id", ""), kind=kind, remote=remote, local="")
+        fig.local = f"{image_dir}/{local_name(fig.source_relpath)}.png"
+        out.figures.append(fig)
         p = _new(soup, "p")
-        p.append(_new(soup, "img", src=local, alt=""))
+        p.append(_new(soup, "img", src=fig.local, alt=""))
         g.replace_with(p)
 
-    n_fig = n_tab = 0
-    for fig in article.select("figure"):
-        if fig.find_parent("figure") is not None:
-            continue
+    figures = article.select("figure")
+    n_fig = sum(1 for f in figures if f.find_parent("figure") is None and _has_class(f, "ltx_figure"))
+    n_tab = sum(1 for f in figures if _has_class(f, "ltx_table"))
+    # Innermost first, so a sub-table's caption stays with its own table (codex review, 2026-09-05).
+    for fig in reversed(figures):
         is_table = _has_class(fig, "ltx_table")
-        if is_table:
-            n_tab += 1
-        elif _has_class(fig, "ltx_figure"):
-            n_fig += 1
-        for cap in fig.select("figcaption"):
+        for cap in fig.find_all("figcaption"):
+            if cap.find_parent("figure") is not fig:
+                continue
             for span in cap.find_all("span"):  # bold/italic runs inside an italic caption only add ***
                 if span.find_parent("math") is None:
                     span.unwrap()
@@ -342,13 +369,31 @@ def _figures_and_tables(soup: BeautifulSoup, article: Tag, out: Adapted, image_d
                 fig.insert(0, p)  # caption above the table
             else:
                 cap.replace_with(p)
-        for inner in fig.select("figure"):
-            inner.unwrap()
-        fig.name = "div"
+    for fig in figures:
+        if fig.parent is not None:
+            fig.name = "div"
 
     for table in article.select("table"):
+        if table.find_parent("table") is not None:
+            continue
+        _flatten_cells(soup, table)
         _promote_header(soup, table)
     return n_fig, n_tab
+
+
+def _flatten_cells(soup: BeautifulSoup, table: Tag) -> None:
+    """Pipe tables hold inline content only: a cell with ``<br>``, paragraphs, lists or a
+    nested table makes pandoc emit the literal ``[TABLE]`` and drop every cell (measured on
+    2503.17523's transcript tables). Flatten such cells to one inline run instead."""
+    for inner in table.find_all("table"):
+        rows = [" | ".join(_text(c) for c in tr.find_all(["td", "th"])) for tr in inner.find_all("tr")]
+        inner.replace_with(NavigableString(" ; ".join(r for r in rows if r)))
+    for cell in table.find_all(["td", "th"]):
+        for br in cell.find_all("br"):
+            br.replace_with(NavigableString(" "))
+        for block in cell.find_all(["p", "div", "ul", "ol", "li", "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6"]):
+            block.insert_before(NavigableString(" "))
+            block.unwrap()
 
 
 def _promote_header(soup: BeautifulSoup, table: Tag) -> None:

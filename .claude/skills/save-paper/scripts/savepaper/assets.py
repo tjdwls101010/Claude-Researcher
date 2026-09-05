@@ -28,6 +28,7 @@ from .latexml import Figure
 # raise both if a legitimate e-print gets rejected (the rejection lists the size).
 MAX_FILE_BYTES = 50 * 1024 * 1024
 MAX_TOTAL_BYTES = 500 * 1024 * 1024
+MAX_MEMBERS = 10_000  # e-prints have tens to hundreds of files; this only stops a hostile archive
 PNG_DPI = 110  # measured: crisp at reading size, ~100-300 KB per figure
 
 _SOURCE_SUFFIXES = (".pdf", ".png", ".jpg", ".jpeg", ".eps")
@@ -43,7 +44,7 @@ class ExtractResult:
 @dataclass
 class AssetResult:
     figure: Figure
-    status: str  # "rendered" | "copied" | "remote" | "svg-fallback" | "missing"
+    status: str  # "rendered" | "copied" | "remote" | "svg-fallback" | "inline-svg" | "missing"
     path: Optional[Path]  # absolute path written, or None
     note: str = ""
 
@@ -92,6 +93,7 @@ def extract_eprint(
     dest: Path,
     max_file_bytes: int = MAX_FILE_BYTES,
     max_total_bytes: int = MAX_TOTAL_BYTES,
+    max_members: int = MAX_MEMBERS,
 ) -> ExtractResult:
     """Unpack an arXiv e-print (gzipped tar, gzipped single file, or bare PDF) into ``dest``."""
     dest.mkdir(parents=True, exist_ok=True)
@@ -102,13 +104,22 @@ def extract_eprint(
     try:
         tar = tarfile.open(fileobj=io.BytesIO(data), mode="r:gz")
     except tarfile.TarError:
-        # gzipped single file: arXiv serves a lone .tex this way
-        (dest / "main.tex").write_bytes(gzip.decompress(data))
+        # gzipped single file: arXiv serves a lone .tex this way. Bound the inflated size too.
+        cap = min(max_file_bytes, max_total_bytes)
+        with gzip.GzipFile(fileobj=io.BytesIO(data)) as gz:
+            payload = gz.read(cap + 1)
+        if len(payload) > cap:
+            return ExtractResult(kind="single", rejected=[{"name": "main.tex", "reason": f"size exceeds cap {cap}"}])
+        (dest / "main.tex").write_bytes(payload)
         return ExtractResult(kind="single", files=["main.tex"])
     result = ExtractResult(kind="tar")
     total = 0
+    root = dest.resolve()
     with tar:
-        for info in tar:
+        for n, info in enumerate(tar):
+            if n >= max_members:
+                result.rejected.append({"name": info.name, "reason": f"more than {max_members} members; rest skipped"})
+                break
             reason = _safe_member(info, max_file_bytes)
             if reason is None and total + info.size > max_total_bytes:
                 reason = f"total size would exceed cap {max_total_bytes}"
@@ -116,6 +127,11 @@ def extract_eprint(
                 result.rejected.append({"name": info.name, "reason": reason})
                 continue
             target = dest / info.name
+            # Containment re-checked on the resolved path: a symlinked directory already under
+            # dest (from a reused staging dir) would otherwise redirect the write.
+            if not target.resolve().is_relative_to(root) or target.is_symlink():
+                result.rejected.append({"name": info.name, "reason": "resolves outside destination"})
+                continue
             if info.isdir():
                 target.mkdir(parents=True, exist_ok=True)
                 continue
@@ -130,15 +146,25 @@ def extract_eprint(
     return result
 
 
-def find_source(extracted_dir: Path, stem: str) -> Optional[Path]:
-    """Original graphic for ``stem`` anywhere in the tarball, preferring PDF (exact) over rasters."""
+def find_source(extracted_dir: Path, relpath: str) -> Optional[Path]:
+    """Original graphic for ``relpath`` (e-print-relative, any suffix): exact path first,
+    preferring PDF (exact) over rasters; a basename-only match is accepted only when it is
+    unambiguous, so ``old/plot.pdf`` never stands in for ``new/plot.png`` (codex review)."""
     if not extracted_dir.exists():
         return None
-    candidates = [p for p in extracted_dir.rglob("*") if p.is_file() and p.stem == stem and p.suffix.lower() in _SOURCE_SUFFIXES]
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: (_SOURCE_SUFFIXES.index(p.suffix.lower()), len(p.parts)))
-    return candidates[0]
+    rel = PurePosixPath(relpath)
+
+    def rank(p: Path):
+        return (_SOURCE_SUFFIXES.index(p.suffix.lower()), len(p.parts))
+
+    exact = [p for p in (extracted_dir / rel.parent).glob(rel.stem + ".*") if p.is_file() and p.suffix.lower() in _SOURCE_SUFFIXES]
+    if exact:
+        return min(exact, key=rank)
+    loose = [p for p in extracted_dir.rglob(rel.stem + ".*") if p.is_file() and p.suffix.lower() in _SOURCE_SUFFIXES]
+    dirs = {p.parent for p in loose}
+    if len(dirs) == 1:
+        return min(loose, key=rank)
+    return None
 
 
 def pdf_to_png(pdf: Path, out_png: Path, dpi: int = PNG_DPI) -> None:
@@ -171,41 +197,48 @@ def materialize(
     results: list[AssetResult] = []
     for fig in figures:
         target = out_root / fig.local
-        stem = PurePosixPath(fig.remote).stem
-        source = find_source(extracted_dir, stem)
-        try:
-            if source is not None and source.suffix.lower() == ".pdf":
+        if fig.kind == "picture":
+            dest = target.with_suffix(".svg")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(fig.inline_svg or "", encoding="utf-8")
+            results.append(AssetResult(fig, "inline-svg", dest, "LaTeXML-drawn picture kept as SVG markup"))
+            continue
+        relpath = fig.source_relpath
+        source = find_source(extracted_dir, relpath)
+        note = ""
+        if source is not None and source.suffix.lower() == ".pdf":
+            try:
                 pdf_to_png(source, target)
                 results.append(AssetResult(fig, "rendered", target, f"from {source.name}"))
                 continue
-            if source is not None and source.suffix.lower() in (".png", ".jpg", ".jpeg"):
-                data = source.read_bytes()
-                if is_image(data) in ("png", "jpeg"):
-                    dest = target.with_suffix(source.suffix.lower().replace(".jpeg", ".jpg"))
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_bytes(data)
-                    results.append(AssetResult(fig, "copied", dest, f"from {source.name}"))
-                    continue
-            data = fetch_remote(fig.remote)
-            if data:
-                kind = is_image(data)
-                if kind in ("png", "jpeg", "gif"):
-                    dest = target.with_suffix({"png": ".png", "jpeg": ".jpg", "gif": ".gif"}[kind])
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_bytes(data)
-                    results.append(AssetResult(fig, "remote", dest, "fetched from arxiv.org/html"))
-                    continue
-                if kind == "svg":
-                    dest = target.with_suffix(".svg")
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_bytes(data)
-                    results.append(AssetResult(fig, "svg-fallback", dest, "no original in e-print; arXiv SVG kept as-is"))
-                    continue
-                results.append(AssetResult(fig, "missing", None, f"remote {fig.remote} is not an image"))
+            except ConvertError as exc:
+                note = f"{exc}; "  # fall through to the remote copy rather than giving up
+        elif source is not None and source.suffix.lower() in (".png", ".jpg", ".jpeg"):
+            data = source.read_bytes()
+            if is_image(data) in ("png", "jpeg"):
+                dest = target.with_suffix(source.suffix.lower().replace(".jpeg", ".jpg"))
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(data)
+                results.append(AssetResult(fig, "copied", dest, f"from {source.name}"))
                 continue
-            results.append(AssetResult(fig, "missing", None, f"no source for {stem} in e-print and nothing at {fig.remote}"))
-        except ConvertError as exc:
-            results.append(AssetResult(fig, "missing", None, str(exc)))
+        data = fetch_remote(fig.remote)
+        if data:
+            kind = is_image(data)
+            if kind in ("png", "jpeg", "gif"):
+                dest = target.with_suffix({"png": ".png", "jpeg": ".jpg", "gif": ".gif"}[kind])
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(data)
+                results.append(AssetResult(fig, "remote", dest, note + "fetched from arxiv.org/html"))
+                continue
+            if kind == "svg":
+                dest = target.with_suffix(".svg")
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(data)
+                results.append(AssetResult(fig, "svg-fallback", dest, note + "no usable original in e-print; arXiv SVG kept as-is"))
+                continue
+            results.append(AssetResult(fig, "missing", None, note + f"remote {fig.remote} is not an image"))
+            continue
+        results.append(AssetResult(fig, "missing", None, note + f"no source for {relpath} in e-print and nothing at {fig.remote}"))
     return results
 
 
