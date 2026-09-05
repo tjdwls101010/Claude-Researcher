@@ -5,3 +5,5 @@
 !.env.example
 /.claude/settings.local.json
 /.codex-runs/
+__pycache__/
+.pytest_cache/
