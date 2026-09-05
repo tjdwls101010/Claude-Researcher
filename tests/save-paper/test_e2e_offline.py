@@ -159,6 +159,14 @@ def test_lossy_conversion_is_saved_but_unverified(tmp_path):
     assert "unverified" in layout.index_md.read_text()
 
 
+def test_describe_without_key_warns_and_still_saves(tmp_path):
+    layout = Layout(tmp_path / "papers")
+    out = save_one("2503.17523", layout, client(ArxivFake()), with_assets=False, describe=True, api_key=None, log=lambda s: None)
+    assert out.exit == EXIT_OK and out.verified
+    assert any("alt text skipped" in w for w in out.warnings)
+    assert "WARNING" in out.summary()
+
+
 def test_no_assets_points_images_at_arxiv(tmp_path):
     layout = Layout(tmp_path / "papers")
     out = save_one("2503.17523", layout, client(ArxivFake()), with_assets=False, log=lambda s: None)

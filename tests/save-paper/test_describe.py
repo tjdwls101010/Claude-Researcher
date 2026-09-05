@@ -102,11 +102,21 @@ def test_sanitize_alt():
     assert sanitize_alt("\n\nx\n") == "x"
 
 
-def test_load_api_key_from_env_file(tmp_path, monkeypatch):
+def test_settings_come_from_env_then_code_local_dotenv_then_project_dotenv(tmp_path, monkeypatch):
+    from savepaper import describe as d
+
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    env = tmp_path / ".env"
-    assert load_api_key(env) is None
-    env.write_text('# comment\nOTHER=1\nOPENROUTER_API_KEY="sk-or-abc"\n')
-    assert load_api_key(env) == "sk-or-abc"
+    monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
+    local = tmp_path / "local.env"
+    monkeypatch.setattr(d, "LOCAL_ENV", local)
+    root = tmp_path / ".env"
+    assert load_api_key(root) is None
+    assert d.default_model(root) == DEFAULT_MODEL
+    root.write_text('# comment\nOTHER=1\nOPENROUTER_API_KEY="sk-or-root"\n')
+    assert load_api_key(root) == "sk-or-root"
+    local.write_text("OPENROUTER_API_KEY=sk-or-local\nOPENROUTER_MODEL=openai/gpt-5.6\n")
+    assert load_api_key(root) == "sk-or-local"  # the .env beside the code wins over the project root
+    assert d.default_model(root) == "openai/gpt-5.6"
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-env")
-    assert load_api_key(env) == "sk-or-env"
+    assert load_api_key(root) == "sk-or-env"  # the environment wins over both files
+    assert (Path(d.__file__).parent / ".env.example").read_text().startswith("# Copy to .env")

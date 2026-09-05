@@ -14,7 +14,7 @@ Exit codes:
   4  fetch failed (network, non-200 from arXiv)
   5  conversion failed (pandoc, anydoc, no LaTeXML article)
   6  saved but NOT verified: coverage check failed or PDF route; read `conversion.known_losses`
-  7  prerequisites missing (doctor), or describe requested without OPENROUTER_API_KEY
+  7  prerequisites missing (doctor), or `describe <id>` run without OPENROUTER_API_KEY
 """
 
 from __future__ import annotations
@@ -57,10 +57,8 @@ def cmd_save(args) -> int:
     from savepaper.pipeline import save_one
 
     layout = Layout(Path(args.out))
-    api_key = load_api_key(project_root() / ".env") if args.describe else None
-    if args.describe and not api_key:
-        eprint("describe needs OPENROUTER_API_KEY in the environment or in .env (see .env.example)")
-        return EXIT_DOCTOR
+    describe = not args.no_describe
+    api_key = load_api_key(project_root() / ".env") if describe else None
     try:
         out = save_one(
             args.ref,
@@ -70,7 +68,7 @@ def cmd_save(args) -> int:
             version=args.version,
             force=args.force,
             with_assets=not args.no_assets,
-            describe=args.describe,
+            describe=describe,
             describe_model=args.model,
             api_key=api_key,
         )
@@ -84,8 +82,12 @@ def cmd_save(args) -> int:
 def cmd_batch(args) -> int:
     from savepaper.pipeline import save_one
 
+    from savepaper.describe import load_api_key
+
     layout = Layout(Path(args.out))
     client = ArxivClient()
+    describe = not args.no_describe
+    api_key = load_api_key(project_root() / ".env") if describe else None
     refs = [l.strip() for l in Path(args.ids_file).read_text(encoding="utf-8").splitlines()]
     refs = [r for r in refs if r and not r.startswith("#")]
     worst = EXIT_OK
@@ -93,7 +95,7 @@ def cmd_batch(args) -> int:
     for i, ref in enumerate(refs, start=1):
         eprint(f"[{i}/{len(refs)}] {ref}")
         try:
-            out = save_one(ref, layout, client, route=args.route, force=args.force, with_assets=not args.no_assets)
+            out = save_one(ref, layout, client, route=args.route, force=args.force, with_assets=not args.no_assets, describe=describe, api_key=api_key)
             row = out.as_dict()
         except SavePaperError as exc:
             row = {"id": ref, "exit": exc.exit_code, "status": "failed", "error": str(exc)}
@@ -116,7 +118,7 @@ def cmd_batch(args) -> int:
 
 
 def cmd_describe(args) -> int:
-    from savepaper.describe import DEFAULT_MODEL, describe_markdown, load_api_key
+    from savepaper.describe import describe_markdown, load_api_key
 
     layout = Layout(Path(args.out))
     md = layout.source_md(safe_id(args.id))
@@ -125,9 +127,9 @@ def cmd_describe(args) -> int:
         return EXIT_USAGE
     api_key = load_api_key(project_root() / ".env")
     if not api_key:
-        eprint("OPENROUTER_API_KEY not set. Put it in the environment or in .env at the project root (copy .env.example).")
+        eprint("OPENROUTER_API_KEY not set. Put it in the environment, or copy .claude/skills/save-paper/scripts/savepaper/.env.example to .env beside it and fill it in.")
         return EXIT_DOCTOR
-    stats = describe_markdown(md, api_key, model=args.model or DEFAULT_MODEL, only_missing=not args.all, log=eprint)
+    stats = describe_markdown(md, api_key, model=args.model, only_missing=not args.all, log=eprint)
     print(json.dumps({"path": str(md), "model": stats.model, "described": stats.count, "failed": stats.failed, "skipped": stats.skipped, "usage": stats.usage, "failures": stats.failures}, ensure_ascii=False, indent=2))
     return EXIT_OK if stats.failed == 0 else EXIT_UNVERIFIED
 
@@ -201,7 +203,7 @@ def cmd_doctor(args) -> int:
     from savepaper.describe import load_api_key
 
     key = load_api_key(project_root() / ".env")
-    checks.append({"name": "OPENROUTER_API_KEY", "ok": bool(key), "detail": "set" if key else "not set -> only needed for --describe / describe (copy .env.example to .env)", "required": False})
+    checks.append({"name": "OPENROUTER_API_KEY", "ok": bool(key), "detail": "set" if key else "not set -> figure alt text will be skipped (copy scripts/savepaper/.env.example to scripts/savepaper/.env)", "required": False})
     width = max(len(c["name"]) for c in checks)
     for c in checks:
         mark = "ok  " if c["ok"] else ("FAIL" if c["required"] else "warn")
@@ -228,23 +230,24 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--version", type=int, default=None, dest="version", help="pin an arXiv version number instead of the latest (also overrides a vN in the ref)")
     sp.add_argument("--force", action="store_true", help="re-convert even when the fingerprint says the saved file is up to date or a newer version exists; never skips the check")
     sp.add_argument("--no-assets", action="store_true", help="skip the e-print download and figure rendering; image links point at arxiv.org instead of local PNGs")
-    sp.add_argument("--describe", action="store_true", help="after conversion, fill each figure's alt text with an OpenRouter vision model (costs money; needs OPENROUTER_API_KEY)")
-    sp.add_argument("--model", default=None, help="OpenRouter model for --describe (default: openai/gpt-5.6-luna)")
+    sp.add_argument("--no-describe", action="store_true", help="skip figure alt text. By default every figure is described by an OpenRouter vision model (costs money, ~$0.03-0.10 per figure); without OPENROUTER_API_KEY the step is skipped with a warning and the alts stay empty")
+    sp.add_argument("--model", default=None, help="OpenRouter model for alt text (default: OPENROUTER_MODEL from .env, else openai/gpt-5.6-luna)")
     add_out(sp)
     sp.set_defaults(func=cmd_save)
 
-    sp = sub.add_parser("batch", help="save many refs from a file, continuing past failures; describe is always off", description="Save every ref listed in a file (one per line, # comments allowed). One failure does not stop the batch; the exit code is the worst one seen.")
+    sp = sub.add_parser("batch", help="save many refs from a file, continuing past failures", description="Save every ref listed in a file (one per line, # comments allowed). One failure does not stop the batch; the exit code is the worst one seen. Alt text is generated for every paper unless --no-describe.")
     sp.add_argument("--ids-file", required=True, help="text file with one arXiv ref per line")
     sp.add_argument("--route", choices=ROUTES, default="auto", help="conversion route for every ref (see `save --help`)")
     sp.add_argument("--force", action="store_true", help="re-convert papers that are already up to date")
     sp.add_argument("--no-assets", action="store_true", help="skip figure download/rendering for every ref")
+    sp.add_argument("--no-describe", action="store_true", help="skip figure alt text for every ref (see `save --help`)")
     sp.add_argument("--jsonl", default=None, help="append one JSON line per ref here: {id, version, route, coverage, verified, exit, path, losses, ...}")
     add_out(sp)
     sp.set_defaults(func=cmd_batch)
 
     sp = sub.add_parser("describe", help="fill figure alt text of an already saved source with an OpenRouter vision model", description="Write a text replacement for each figure into the alt slot of ![alt](path) in papers/sources/<id>.md. Needs OPENROUTER_API_KEY (environment or .env); exits 7 without it.")
     sp.add_argument("id", help="arXiv id of a saved source (legacy ids with / are accepted)")
-    sp.add_argument("--model", default=None, help="OpenRouter model id (default: openai/gpt-5.6-luna)")
+    sp.add_argument("--model", default=None, help="OpenRouter model id (default: OPENROUTER_MODEL from .env, else openai/gpt-5.6-luna)")
     sp.add_argument("--all", action="store_true", help="re-describe every figure, not only those with an empty alt")
     add_out(sp)
     sp.set_defaults(func=cmd_describe)

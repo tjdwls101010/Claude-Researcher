@@ -62,6 +62,9 @@ class Outcome:
             parts.append(f"described={self.describe.get('count')}/{self.describe.get('count', 0) + self.describe.get('failed', 0)} cost=${self.describe.get('cost', 0)}")
         if self.path:
             parts.append(self.path)
+        for w in self.warnings:
+            if "alt text skipped" in w:
+                parts.append(f"WARNING: {w}")
         return "  ".join(parts)
 
 
@@ -113,13 +116,13 @@ def save_one(
             return out
 
         if describe:
-            from .describe import DEFAULT_MODEL, describe_markdown
+            from .describe import describe_markdown
 
             if not api_key:
-                out.warnings.append("describe requested but no OPENROUTER_API_KEY; skipped (see .env.example)")
+                out.warnings.append("figure alt text skipped: no OPENROUTER_API_KEY (copy scripts/savepaper/.env.example to .env there); run `describe <id>` later")
                 log(out.warnings[-1])
             else:
-                stats = describe_markdown(st.md, api_key, model=describe_model or DEFAULT_MODEL, log=log)
+                stats = describe_markdown(st.md, api_key, model=describe_model, log=log)
                 out.describe = {"count": stats.count, "failed": stats.failed, "model": stats.model, **stats.usage}
 
         published = st.publish(sid)

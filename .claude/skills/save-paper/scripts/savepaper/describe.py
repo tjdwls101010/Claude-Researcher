@@ -31,6 +31,8 @@ PROVIDER_PREFS = {"require_parameters": True, "sort": "price"}
 CONTEXT_CHARS = 1111
 PROMPT_PATH = Path(__file__).with_name("describe_prompt.md")
 ENV_KEY = "OPENROUTER_API_KEY"
+ENV_MODEL = "OPENROUTER_MODEL"
+LOCAL_ENV = Path(__file__).with_name(".env")  # next to the code, gitignored; .env.example beside it documents the keys
 
 _IMG_RE = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<path>[^)\s]+\.(?:png|jpe?g|gif|webp))\)", re.IGNORECASE)
 
@@ -48,16 +50,39 @@ class DescribeStats:
         return {"by": f"openrouter/{self.model}", "at": now_iso(), "count": self.count, "failed": self.failed}
 
 
-def load_api_key(env_file: Path) -> Optional[str]:
-    """``OPENROUTER_API_KEY`` from the environment, else from a ``.env`` file (KEY=value lines)."""
-    if os.environ.get(ENV_KEY):
-        return os.environ[ENV_KEY]
-    if env_file.exists():
+def env_files(project_root: Optional[Path] = None) -> list[Path]:
+    """Where settings are read from, in priority order: the ``.env`` beside this code, then the project root's."""
+    files = [LOCAL_ENV]
+    if project_root is not None:
+        files.append(Path(project_root) / ".env")
+    return files
+
+
+def load_setting(name: str, files: Optional[list[Path]] = None) -> Optional[str]:
+    """``name`` from the environment, else the first ``.env`` file (KEY=value lines) that defines it."""
+    if os.environ.get(name):
+        return os.environ[name]
+    for env_file in files if files is not None else env_files():
+        if not env_file.exists():
+            continue
         for line in env_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
-            if line.startswith(ENV_KEY + "="):
-                return line.split("=", 1)[1].strip().strip('"').strip("'") or None
+            if line.startswith(name + "="):
+                value = line.split("=", 1)[1].strip().strip('"').strip("'")
+                if value:
+                    return value
     return None
+
+
+def load_api_key(env_file: Optional[Path] = None) -> Optional[str]:
+    """``OPENROUTER_API_KEY``; ``env_file`` (a project-root ``.env``) is searched after the code-local one."""
+    files = [LOCAL_ENV] + ([env_file] if env_file is not None else [])
+    return load_setting(ENV_KEY, files)
+
+
+def default_model(env_file: Optional[Path] = None) -> str:
+    files = [LOCAL_ENV] + ([env_file] if env_file is not None else [])
+    return load_setting(ENV_MODEL, files) or DEFAULT_MODEL
 
 
 def sanitize_alt(text: str) -> str:
@@ -132,7 +157,7 @@ def _mime(path: Path) -> str:
 def describe_markdown(
     md_path: Path,
     api_key: str,
-    model: str = DEFAULT_MODEL,
+    model: Optional[str] = None,
     only_missing: bool = True,
     post: Optional[Callable] = None,
     prompt_template: Optional[str] = None,
@@ -147,6 +172,7 @@ def describe_markdown(
             r.raise_for_status()
             return r.json()
 
+    model = model or default_model()
     template = prompt_template if prompt_template is not None else PROMPT_PATH.read_text(encoding="utf-8")
     text = md_path.read_text(encoding="utf-8")
     fm, body = parse(text)

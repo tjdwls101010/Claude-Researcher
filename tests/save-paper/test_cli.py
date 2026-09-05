@@ -58,6 +58,12 @@ def test_describe_without_key_exits_7(tmp_path, monkeypatch):
     assert ".env.example" in r.stderr
 
 
+def test_save_help_says_alt_text_is_on_by_default():
+    r = run("save", "--help")
+    assert "--no-describe" in r.stdout
+    assert "By default every figure is" in r.stdout  # argparse wraps the rest
+
+
 def test_note_check_reports_missing_numbers_and_structure(tmp_path):
     source = tmp_path / "2503.17523.md"
     source.write_text(
