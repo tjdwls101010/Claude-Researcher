@@ -74,6 +74,30 @@ def test_failed_image_keeps_empty_alt_and_is_counted(tmp_path):
     assert fm["figures_described"]["failed"] == 1
 
 
+def test_requests_run_in_parallel_and_land_on_the_right_figure(tmp_path):
+    import threading
+    import time
+
+    md = make_md(tmp_path, alts=("", "", "", ""))
+    active, peak, lock = [0], [0], threading.Lock()
+
+    def post(payload):
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        time.sleep(0.05)
+        name = payload["messages"][0]["content"][0]["text"].rsplit("/", 1)[-1]  # prompt ends with the image path
+        with lock:
+            active[0] -= 1
+        return ok_response(f"desc of {name}")
+
+    stats = describe_markdown(md, "k", post=post, prompt_template="{image_path}", concurrency=4)
+    assert stats.count == 4 and peak[0] > 1
+    body = parse(md.read_text())[1]
+    for i in range(1, 5):
+        assert f"![desc of fig{i}.png](images/2503.17523v3/fig{i}.png)" in body
+
+
 def test_only_missing_false_redescribes_everything(tmp_path):
     md = make_md(tmp_path, alts=("old",))
     stats = describe_markdown(md, "k", only_missing=False, post=lambda p: ok_response("new"), prompt_template="x")
