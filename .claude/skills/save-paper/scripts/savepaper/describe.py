@@ -15,6 +15,7 @@ import base64
 import json
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -32,6 +33,8 @@ CONTEXT_CHARS = 1111
 PROMPT_PATH = Path(__file__).with_name("describe_prompt.md")
 ENV_KEY = "OPENROUTER_API_KEY"
 ENV_MODEL = "OPENROUTER_MODEL"
+ENV_CONCURRENCY = "OPENROUTER_CONCURRENCY"
+DEFAULT_CONCURRENCY = 4  # parallel requests per paper; OpenRouter handles this comfortably, the original JS ran all at once
 ENV_EFFORT = "OPENROUTER_REASONING_EFFORT"  # none | low | medium | high | xhigh | max
 ENV_MAX_TOKENS = "OPENROUTER_MAX_TOKENS"  # raise together with effort: max measured ~12,452 reasoning tokens
 LOCAL_ENV = Path(__file__).with_name(".env")  # next to the code, gitignored; .env.example beside it documents the keys
@@ -176,6 +179,7 @@ def describe_markdown(
     post: Optional[Callable] = None,
     prompt_template: Optional[str] = None,
     log: Callable[[str], None] = lambda s: None,
+    concurrency: Optional[int] = None,
 ) -> DescribeStats:
     """Fill the alt slot of every raster image link in ``md_path`` (in place) and record the run in frontmatter."""
     if post is None:
@@ -193,9 +197,8 @@ def describe_markdown(
     fm, body = parse(text)
     stats = DescribeStats(model=model)
     matches = list(_IMG_RE.finditer(body))
-    new_body = body
-    # Replace from the end so earlier offsets stay valid.
-    for m in reversed(matches):
+    jobs = []  # (match, prompt, image path) for every figure that needs a description
+    for m in matches:
         alt, rel = m.group("alt"), m.group("path")
         if only_missing and alt.strip():
             stats.skipped += 1
@@ -208,15 +211,28 @@ def describe_markdown(
         before = body[max(0, m.start() - CONTEXT_CHARS) : m.start()].strip()
         after = body[m.end() : m.end() + CONTEXT_CHARS].strip()
         prompt = template.replace("{context_before}", before).replace("{context_after}", after).replace("{image_path}", rel)
+        jobs.append((m, prompt, img_path))
+
+    def run(job):
+        m, prompt, img_path = job
         try:
-            data = post(build_request(model, prompt, img_path.read_bytes(), _mime(img_path), **settings))
-            desc = parse_response(data)
+            data = post(build_request(model, prompt, img_path.read_bytes(), _mime(img_path)))
+            return m, parse_response(data), data.get("usage") or {}, None
         except Exception as exc:  # network, API, schema -- all leave the alt empty and are counted
+            return m, None, {}, str(exc)[:300]
+
+    workers = concurrency or int(load_setting(ENV_CONCURRENCY) or DEFAULT_CONCURRENCY)
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        results = list(pool.map(run, jobs))
+
+    new_body = body
+    for m, desc, usage, error in reversed(results):  # replace from the end so earlier offsets stay valid
+        rel = m.group("path")
+        if error is not None:
             stats.failed += 1
-            stats.failures.append({"path": rel, "error": str(exc)[:300]})
-            log(f"  describe FAILED {rel}: {str(exc)[:120]}")
+            stats.failures.append({"path": rel, "error": error})
+            log(f"  describe FAILED {rel}: {error[:120]}")
             continue
-        usage = data.get("usage") or {}
         stats.usage["prompt_tokens"] += int(usage.get("prompt_tokens") or 0)
         stats.usage["completion_tokens"] += int(usage.get("completion_tokens") or 0)
         stats.usage["cost"] = round(stats.usage["cost"] + float(usage.get("cost") or 0.0), 6)
