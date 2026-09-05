@@ -91,8 +91,12 @@ def test_requests_run_in_parallel_and_land_on_the_right_figure(tmp_path):
             active[0] -= 1
         return ok_response(f"desc of {name}")
 
-    stats = describe_markdown(md, "k", post=post, prompt_template="{image_path}", concurrency=4)
+    logs = []
+    stats = describe_markdown(md, "k", post=post, prompt_template="{image_path}", concurrency=4, log=logs.append)
     assert stats.count == 4 and peak[0] > 1
+    assert logs[0].strip().startswith("describing 4 figure(s)")
+    assert sum(1 for l in logs if "] described " in l) == 4 and any("[4/4]" in l for l in logs)
+    assert logs[-1].strip().startswith("described 4/4, cost $")
     body = parse(md.read_text())[1]
     for i in range(1, 5):
         assert f"![desc of fig{i}.png](images/2503.17523v3/fig{i}.png)" in body
