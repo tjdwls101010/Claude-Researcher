@@ -14,6 +14,7 @@ the plan session, 2026-09-05.
 
 from __future__ import annotations
 
+import copy
 import re
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
@@ -396,6 +397,51 @@ def _flatten_cells(soup: BeautifulSoup, table: Tag) -> None:
         for block in cell.find_all(["p", "div", "ul", "ol", "li", "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6"]):
             block.insert_before(NavigableString(" "))
             block.unwrap()
+    _expand_rowspans(soup, table)
+    _mark_row_groups(soup, table)
+
+
+def _expand_rowspans(soup: BeautifulSoup, table: Tag) -> None:
+    """A pipe table has no rowspan, so pandoc leaves the spanned rows blank and a reader can no
+    longer tell which category a row belongs to (codex review of 2503.17523, Table 1). Repeat the
+    spanning cell's content in each row it covered instead."""
+    rows = table.find_all("tr")
+    pending: dict[int, list[tuple[int, Tag]]] = {}
+    for i, tr in enumerate(rows):
+        for col, clone in sorted(pending.pop(i, []), key=lambda x: x[0]):
+            cells = tr.find_all(["td", "th"], recursive=False)
+            if col < len(cells):
+                cells[col].insert_before(clone)
+            else:
+                tr.append(clone)
+        for col, cell in enumerate(tr.find_all(["td", "th"], recursive=False)):
+            try:
+                span = int(cell.get("rowspan") or 1)
+            except ValueError:
+                span = 1
+            if span > 1:
+                del cell["rowspan"]
+                for k in range(1, span):
+                    if i + k < len(rows):
+                        pending.setdefault(i + k, []).append((col, copy.copy(cell)))
+
+
+def _mark_row_groups(soup: BeautifulSoup, table: Tag) -> None:
+    """LaTeXML keeps a \\midrule as ``ltx_border_t`` on the cells below it. The rule is the
+    author's grouping of rows (three examples of three flights each, codex review), so an empty
+    row stands in for it -- the one boundary marker a pipe table can carry."""
+    body_rows = [tr for tr in table.find_all("tr") if tr.find_parent("thead") is None]
+    for tr in body_rows[1:]:
+        first = tr.find(["td", "th"], recursive=False)
+        if first is None:
+            continue
+        cls = _classes(first)
+        if any(c in cls for c in ("ltx_border_t", "ltx_border_tt")) and not any(c in cls for c in ("ltx_border_bb",)):
+            n = len(tr.find_all(["td", "th"], recursive=False))
+            sep = _new(soup, "tr")
+            for _ in range(n):
+                sep.append(_new(soup, "td", ""))
+            tr.insert_before(sep)
 
 
 def _promote_header(soup: BeautifulSoup, table: Tag) -> None:

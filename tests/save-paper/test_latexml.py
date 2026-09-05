@@ -107,6 +107,17 @@ def test_table_without_thead_promotes_first_row_and_keeps_all_cells():
     assert re.search(r"^\|-+\|-+\|$", md, re.M)  # header separator right after the promoted row
 
 
+def test_rowspan_category_is_repeated_on_each_row_and_groups_are_separated():
+    _, md = md_of("table_nohead")
+    rows = [l for l in md.splitlines() if l.startswith("| ")]
+    beds = [r for r in rows if r.startswith("| Beds")]
+    assert len(beds) == 3  # Beds spanned three rows in the HTML
+    shoes = [r for r in rows if "Men’s athletic shoes" in r]
+    assert len(shoes) == 3
+    # a \midrule (ltx_border_t) between groups becomes an empty row
+    assert re.search(r"^\|\s+\|\s+\|$", md, re.M)
+
+
 def test_table_with_colspan_headers_keeps_every_cell():
     _, md = md_of("table_guessed")
     for cell in ["In-Domain Tasks", "Unseen Tasks", "gemma-3-27b-it", "39.8", "GPQA-D", "Avg."]:
