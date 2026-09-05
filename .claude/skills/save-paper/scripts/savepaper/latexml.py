@@ -423,7 +423,9 @@ def _expand_rowspans(soup: BeautifulSoup, table: Tag) -> None:
                 del cell["rowspan"]
                 for k in range(1, span):
                     if i + k < len(rows):
-                        pending.setdefault(i + k, []).append((col, copy.copy(cell)))
+                        clone = copy.copy(cell)
+                        clone["data-rowspan-clone"] = "1"  # not the author's cell: ignored when reading rules
+                        pending.setdefault(i + k, []).append((col, clone))
 
 
 def _mark_row_groups(soup: BeautifulSoup, table: Tag) -> None:
@@ -432,11 +434,11 @@ def _mark_row_groups(soup: BeautifulSoup, table: Tag) -> None:
     row stands in for it -- the one boundary marker a pipe table can carry."""
     body_rows = [tr for tr in table.find_all("tr") if tr.find_parent("thead") is None]
     for tr in body_rows[1:]:
-        first = tr.find(["td", "th"], recursive=False)
-        if first is None:
+        own = [c for c in tr.find_all(["td", "th"], recursive=False) if not c.get("data-rowspan-clone")]
+        if not own:
             continue
-        cls = _classes(first)
-        if any(c in cls for c in ("ltx_border_t", "ltx_border_tt")) and not any(c in cls for c in ("ltx_border_bb",)):
+        ruled = all(any(c in _classes(cell) for c in ("ltx_border_t", "ltx_border_tt")) for cell in own)
+        if ruled:
             n = len(tr.find_all(["td", "th"], recursive=False))
             sep = _new(soup, "tr")
             for _ in range(n):
