@@ -230,7 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--version", type=int, default=None, dest="version", help="pin an arXiv version number instead of the latest (also overrides a vN in the ref)")
     sp.add_argument("--force", action="store_true", help="re-convert even when the fingerprint says the saved file is up to date or a newer version exists; never skips the check")
     sp.add_argument("--no-assets", action="store_true", help="skip the e-print download and figure rendering; image links point at arxiv.org instead of local PNGs")
-    sp.add_argument("--no-describe", action="store_true", help="skip figure alt text. By default every figure is described by an OpenRouter vision model (costs money, ~$0.03-0.10 per figure); without OPENROUTER_API_KEY the step is skipped with a warning and the alts stay empty")
+    sp.add_argument("--no-describe", action="store_true", help="skip figure alt text. By default every figure is described by an OpenRouter vision model (costs money: measured $0.006 per figure with gpt-5.6-luna at reasoning=high, 2026-09-06); without OPENROUTER_API_KEY the step is skipped with a warning and the alts stay empty")
     sp.add_argument("--model", default=None, help="OpenRouter model for alt text (default: OPENROUTER_MODEL from .env, else openai/gpt-5.6-luna)")
     add_out(sp)
     sp.set_defaults(func=cmd_save)

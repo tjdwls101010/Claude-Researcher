@@ -25,7 +25,10 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from .latexml import bibitem_text, math_tex
 
 FAIL_KINDS = {"paragraph", "cell", "caption", "bibitem", "footnote", "listingline", "heading"}
-_SKIP_INSIDE = {"ltx_note", "ltx_note_mark", "ltx_tag_note", "ltx_note_type", "ltx_bib_cited"}
+# Subtrees whose text is accounted for elsewhere or is metadata, not paper content: footnotes
+# (checked as their own blocks), bibliography back-links, and the author block (names go to
+# frontmatter; the name/email/affiliation mini-tables LaTeXML builds there are layout).
+_SKIP_INSIDE = {"ltx_note", "ltx_note_mark", "ltx_tag_note", "ltx_note_type", "ltx_bib_cited", "ltx_authors"}
 _DROP = ["nav", ".ltx_TOC", ".ltx_page_navbar", ".ltx_page_logo", ".ltx_page_footer", "script", "style"]
 
 
@@ -125,9 +128,10 @@ def extract_blocks(html: str) -> tuple[list[Block], dict]:
         if name in ("h1", "h2", "h3", "h4", "h5", "h6") and "ltx_title" in cls:
             add(el, "heading", block_text(el))
         elif "ltx_p" in cls and not el.find_parent(class_="ltx_p"):
-            add(el, "paragraph", block_text(el))
-        elif name in ("td", "th"):
-            if el.find("table") is None:  # a cell holding a nested table is checked via that table's cells
+            if el.find(class_="ltx_tabular") is None:  # a paragraph that only wraps a table: its cells are the blocks
+                add(el, "paragraph", block_text(el))
+        elif name in ("td", "th") or "ltx_td" in cls:
+            if el.find("table") is None and el.find(class_="ltx_tabular") is None:  # nested table: checked via its own cells
                 add(el, "cell", block_text(el))
         elif name == "figcaption":
             add(el, "caption", block_text(el))
@@ -155,6 +159,7 @@ def extract_blocks(html: str) -> tuple[list[Block], dict]:
                 if not (_classes(t) & {"ltx_equation", "ltx_equationgroup", "ltx_eqn_table"})
                 and t.find_parent(class_="ltx_tabular") is None
                 and t.find_parent(class_="ltx_equation") is None
+                and t.find_parent(class_="ltx_authors") is None
             ]
         ),
     }

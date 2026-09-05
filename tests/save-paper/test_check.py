@@ -96,6 +96,17 @@ def test_table_rendered_as_paragraphs_is_a_warning(page, markdown):
     assert not any("pipe table" in w for w in check(page, markdown).warnings)
 
 
+def test_span_based_table_cells_are_checked_as_cells_not_as_one_paragraph():
+    html = (Path(__file__).parent / "fixtures" / "latexml" / "table_span_based.html").read_text(encoding="utf-8")
+    blocks, counts = extract_blocks(html)
+    kinds = [b.kind for b in blocks]
+    assert "paragraph" not in kinds  # the wrapping <p> is layout, not a paragraph
+    assert kinds.count("cell") > 50 and any(b.text.strip() == "Qwen3.7-Plus" for b in blocks)
+    assert counts["data_tables"] == 1
+    md = html_to_markdown(adapt(html, image_dir="images/x").html)
+    assert check(html, md).passed
+
+
 def test_missing_caption_fails_but_missing_math_warning_does_not():
     html = """<article class="ltx_document">
     <p class="ltx_p" id="p1">Hello <math class="ltx_math_unparsed"><semantics><mi>x</mi><annotation encoding="application/x-tex">\\weird{x}</annotation></semantics></math> world.</p>

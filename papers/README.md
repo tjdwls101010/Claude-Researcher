@@ -14,7 +14,7 @@
 
 # Sources
 
-* [JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution](sources/2608.25593.md) (arXiv:2608.25593v2; 2026-08-26; machine-confirmed) - Agent capability is not determined by the model alone.
+* [JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution](sources/2608.25593.md) (arXiv:2608.25593v2; 2026-08-26; unverified) - Agent capability is not determined by the model alone.
 * [Prime Agent: A Self-Improving RLM Harness](sources/2608.23552.md) (arXiv:2608.23552v1; 2026-08-24; machine-confirmed) - Language models are sequential processors, but long-horizon agency requires external information and computation beyond model weights and active context.
 * [Context as an Environment: Programmatic Context Management for Long-Horizon Agents](sources/2608.21690.md) (arXiv:2608.21690v1; 2026-08-21; machine-confirmed) - LLM agents increasingly take on long-running tasks whose history grows far beyond a single model context window.
 * [Evaluating Skills, Not Just Agents: Agentic Continuous Evaluation of Skills](sources/2608.20614.md) (arXiv:2608.20614v1; 2026-08-20; machine-confirmed) - Enterprise agent programs are moving from prototypes into production, where reusable skills, tools, and workflow packages must be reviewed with evidence rather than prose.

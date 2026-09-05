@@ -8,6 +8,7 @@ saved the file but without ``verified`` -- there is no silent success.
 from __future__ import annotations
 
 import hashlib
+import re
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -114,6 +115,10 @@ def save_one(
             _pdf_route(resolved, st, client, force, options, out, log)
         if out.status == "up-to-date":
             return out
+
+        carried = carry_over_alts(final_md, st.md)
+        if carried:
+            log(f"kept {carried} figure alt text(s) from the previous conversion")
 
         if describe:
             from .describe import describe_markdown
@@ -248,6 +253,36 @@ def _pdf_route(resolved: Resolved, st: Staging, client: ArxivClient, force, opti
     fm = build_source_frontmatter(resolved, sources=sources, conversion=conversion, verified=False, generated_at=now_iso())
     st.md.write_text(dump(fm, body), encoding="utf-8")
     log("PDF route: text and tables only; math and figures are known losses, file is unverified")
+
+
+_IMG_LINK = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<path>[^)\s]+)\)")
+
+
+def carry_over_alts(previous_md: Path, staged_md: Path) -> int:
+    """Copy alt texts from the previously published file into the staged one, by image path.
+
+    A re-conversion (``--force``, adapter upgrade) produces empty alts again; the descriptions
+    already paid for still fit the same PNGs, so they are kept and only new figures get described.
+    """
+    if not previous_md.exists():
+        return 0
+    old_alts = {m.group("path"): m.group("alt") for m in _IMG_LINK.finditer(previous_md.read_text(encoding="utf-8")) if m.group("alt").strip()}
+    if not old_alts:
+        return 0
+    text = staged_md.read_text(encoding="utf-8")
+    count = 0
+
+    def fill(m):
+        nonlocal count
+        if not m.group("alt").strip() and m.group("path") in old_alts:
+            count += 1
+            return f"![{old_alts[m.group('path')]}]({m.group('path')})"
+        return m.group(0)
+
+    new_text = _IMG_LINK.sub(fill, text)
+    if count:
+        staged_md.write_text(new_text, encoding="utf-8")
+    return count
 
 
 def _http_date(resp) -> str:
