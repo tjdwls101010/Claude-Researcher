@@ -222,6 +222,18 @@ def test_refs_and_cites_keep_text_only():
     assert "](#" not in md
 
 
+def test_span_table_inside_a_text_box_survives():
+    html = """<article class="ltx_document"><div class="ltx_para"><svg class="ltx_picture"><g><foreignobject><span class="ltx_foreignobject_container"><span class="ltx_foreignobject_content"><span class="ltx_inline-block"><span class="ltx_tabular"><span class="ltx_tr"><span class="ltx_td ltx_th">Process Step</span><span class="ltx_td">Temp</span></span><span class="ltx_tr"><span class="ltx_td">Precursor Setup</span><span class="ltx_td">150</span></span></span></span></span></span></foreignobject></g></svg></div></article>"""
+    md = html_to_markdown(adapt(html, image_dir="images/x").html)
+    assert "| Process Step" in md and "| Precursor Setup" in md and "150" in md
+
+
+def test_adjacent_inline_math_is_separated():
+    html = """<article class="ltx_document"><p class="ltx_p">if <math><semantics><mi>p</mi><annotation encoding="application/x-tex">p_{i}</annotation></semantics></math><math><semantics><mi>q</mi><annotation encoding="application/x-tex">\\neq a</annotation></semantics></math>: cannot merge</p></article>"""
+    md = html_to_markdown(adapt(html, image_dir="images/x").html)
+    assert "$p_{i}$ $\\neq a$" in md and "$$" not in md
+
+
 def test_drawn_picture_becomes_an_inline_svg_asset():
     html = """<article class="ltx_document"><div class="ltx_para"><p class="ltx_p">See the diagram.</p>
     <svg class="ltx_picture" id="S1.pic1" viewBox="0 0 10 10"><g><path d="M0 0L10 10"/><text>A</text></g></svg></div></article>"""

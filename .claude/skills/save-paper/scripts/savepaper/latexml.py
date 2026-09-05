@@ -181,8 +181,8 @@ def adapt(html: str, image_dir: str) -> Adapted:
     # as text (listings), then figures/tables, then everything else.
     counts["footnotes"] = _footnotes(soup, article)
     counts["equations"] = _equations(soup, article)
+    _foreign_objects(soup, article, out)  # before span tables: a table inside a text box must be lifted out of the box's content, not out of the <svg>
     _span_tables(soup, article)
-    _foreign_objects(soup, article, out)
     counts["listings"] = _listings(soup, article)
     _theorems(soup, article)
     counts["figures"], counts["tables"] = _figures_and_tables(soup, article, out, image_dir)
@@ -192,6 +192,7 @@ def adapt(html: str, image_dir: str) -> Adapted:
     _lists(soup, article)
     _links(soup, article)
     out.unparsed_math = len(article.select("math.ltx_math_unparsed"))
+    _separate_adjacent_math(article)
     _unwrap_rest(soup, article)
 
     body = _new(soup, "div")
@@ -595,6 +596,15 @@ _INLINE_MAP = {
     "ltx_font_italic": "em",
     "ltx_font_typewriter": "code",
 }
+
+
+def _separate_adjacent_math(article: Tag) -> None:
+    """Two inline formulas with nothing between them serialise as ``$a$$b$``, which every Markdown
+    reader (and note-check) takes for a display block. A space between them costs nothing."""
+    for m in article.find_all("math"):
+        nxt = m.next_sibling
+        if isinstance(nxt, Tag) and nxt.name == "math":
+            m.insert_after(NavigableString(" "))
 
 
 def _unwrap_rest(soup: BeautifulSoup, article: Tag) -> None:
