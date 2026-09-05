@@ -127,12 +127,14 @@ def test_force_resave_keeps_existing_alt_texts(tmp_path):
     md = layout.source_md("2503.17523")
     text = md.read_text()
     text = text.replace("![](images/2503.17523v3/fig1_task.png)", "![Diagram of the flight task.](images/2503.17523v3/fig1_task.png)", 1)
+    text = text.replace("conversion:", "figures_described: {by: openrouter/test, at: '2026-09-06T00:00:00Z', count: 1, failed: 0}\nconversion:", 1)
     md.write_text(text)
     logs = []
     out = save_one("2503.17523", layout, client(ArxivFake()), force=True, log=logs.append)
     assert out.status == "saved"
     assert "![Diagram of the flight task.](images/2503.17523v3/fig1_task.png)" in md.read_text()
     assert any("kept 1 figure alt text" in l for l in logs)
+    assert parse(md.read_text())[0]["figures_described"]["count"] == 1  # provenance of the kept alt survives
 
 
 def test_newer_version_is_reported_not_overwritten(tmp_path):

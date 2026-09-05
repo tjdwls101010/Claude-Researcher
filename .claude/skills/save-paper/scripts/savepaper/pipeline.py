@@ -18,7 +18,7 @@ from . import assets as assets_mod
 from .arxiv import ArxivClient, Resolved, resolve, safe_id
 from .check import check, count_tex_bibitems
 from .errors import EXIT_OK, EXIT_UNVERIFIED, ConvertError, FetchError
-from .frontmatter import build_source_frontmatter, dump, fingerprint, now_iso
+from .frontmatter import build_source_frontmatter, dump, fingerprint, now_iso, parse, update
 from .index import write_index
 from .latexml import ADAPTER_VERSION, adapt
 from .pandoc import WRITER, html_to_markdown, pandoc_version
@@ -281,6 +281,9 @@ def carry_over_alts(previous_md: Path, staged_md: Path) -> int:
 
     new_text = _IMG_LINK.sub(fill, text)
     if count:
+        old_fm, _ = parse(previous_md.read_text(encoding="utf-8"))
+        if old_fm.get("figures_described"):
+            new_text = update(new_text, figures_described=old_fm["figures_described"])  # provenance travels with the text
         staged_md.write_text(new_text, encoding="utf-8")
     return count
 
