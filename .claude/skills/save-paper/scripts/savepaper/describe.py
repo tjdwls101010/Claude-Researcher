@@ -15,6 +15,7 @@ import base64
 import json
 import os
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -213,16 +214,29 @@ def describe_markdown(
         prompt = template.replace("{context_before}", before).replace("{context_after}", after).replace("{image_path}", rel)
         jobs.append((m, prompt, img_path))
 
+    workers = max(1, concurrency or int(load_setting(ENV_CONCURRENCY) or DEFAULT_CONCURRENCY))
+    done = [0]
+    lock = threading.Lock()
+    if jobs:
+        log(f"  describing {len(jobs)} figure(s) with {model}, {min(workers, len(jobs))} in parallel")
+
     def run(job):
         m, prompt, img_path = job
+        rel = m.group("path")
         try:
             data = post(build_request(model, prompt, img_path.read_bytes(), _mime(img_path)))
-            return m, parse_response(data), data.get("usage") or {}, None
+            result = (m, parse_response(data), data.get("usage") or {}, None)
         except Exception as exc:  # network, API, schema -- all leave the alt empty and are counted
-            return m, None, {}, str(exc)[:300]
+            result = (m, None, {}, str(exc)[:300])
+        with lock:  # progress as each figure lands, so a caller watching stderr sees the run move
+            done[0] += 1
+            if result[3] is None:
+                log(f"  [{done[0]}/{len(jobs)}] described {rel} ({len(result[1])} chars)")
+            else:
+                log(f"  [{done[0]}/{len(jobs)}] FAILED {rel}: {result[3][:120]}")
+        return result
 
-    workers = concurrency or int(load_setting(ENV_CONCURRENCY) or DEFAULT_CONCURRENCY)
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(run, jobs))
 
     new_body = body
@@ -231,14 +245,14 @@ def describe_markdown(
         if error is not None:
             stats.failed += 1
             stats.failures.append({"path": rel, "error": error})
-            log(f"  describe FAILED {rel}: {error[:120]}")
             continue
         stats.usage["prompt_tokens"] += int(usage.get("prompt_tokens") or 0)
         stats.usage["completion_tokens"] += int(usage.get("completion_tokens") or 0)
         stats.usage["cost"] = round(stats.usage["cost"] + float(usage.get("cost") or 0.0), 6)
         new_body = new_body[: m.start()] + f"![{desc}]({rel})" + new_body[m.end() :]
         stats.count += 1
-        log(f"  described {rel} ({len(desc)} chars)")
+    if stats.count or stats.failed:
+        log(f"  described {stats.count}/{stats.count + stats.failed}, cost ${stats.usage['cost']}")
     if stats.count or stats.failed:
         fm["figures_described"] = stats.as_frontmatter()
         md_path.write_text(dump(fm, new_body), encoding="utf-8")
