@@ -1,0 +1,43 @@
+<!DOCTYPE html><html><body><div class="ltx_page_main"><article class="ltx_document"><ul class="ltx_itemize" id="S1.I1">
+<li class="ltx_item" id="S1.I1.i1" style="list-style-type:none;"><span class="ltx_tag ltx_tag_item">•</span>
+<div class="ltx_para ltx_noindent" id="S1.I1.i1.p1">
+<p class="ltx_p" id="S1.I1.i1.p1.1">We introduce the RL Conductor, a language model trained through end-to-end reinforcement learning to divide challenging problems, delegate targeted subtasks, and design communication topologies for a set of worker LLMs – all in natural language.</p>
+</div></li>
+<li class="ltx_item" id="S1.I1.i2" style="list-style-type:none;"><span class="ltx_tag ltx_tag_item">•</span>
+<div class="ltx_para ltx_noindent" id="S1.I1.i2.p1">
+<p class="ltx_p" id="S1.I1.i2.p1.1">We demonstrate that by obtaining effective prompt engineering and
+coordination skills, a small 7B Conductor can raise its worker LLMs to new heights, attaining state-of-the-art results on complex reasoning tasks and outperforming more expensive multi-agent baselines.</p>
+</div></li>
+<li class="ltx_item" id="S1.I1.i3" style="list-style-type:none;"><span class="ltx_tag ltx_tag_item">•</span>
+<div class="ltx_para" id="S1.I1.i3.p1">
+<p class="ltx_p" id="S1.I1.i3.p1.1">We show how a short finetuning unlocks extensions such as adaptability to arbitrary agent pools and powerful recursive topologies that yield a new test-time scaling axis.</p>
+</div></li>
+</ul><ol class="ltx_enumerate" id="S1.I1">
+<li class="ltx_item" id="S1.I1.i1" style="list-style-type:none;"><span class="ltx_tag ltx_tag_item">1.</span>
+<div class="ltx_para ltx_noindent" id="S1.I1.i1.p1">
+<p class="ltx_p" id="S1.I1.i1.p1.1">A lifecycle view of LLM judges in a large-scale recommender
+system, covering all four phases end to end.</p>
+</div></li>
+<li class="ltx_item" id="S1.I1.i2" style="list-style-type:none;padding-top:2.0pt;"><span class="ltx_tag ltx_tag_item">2.</span>
+<div class="ltx_para ltx_noindent" id="S1.I1.i2.p1">
+<p class="ltx_p" id="S1.I1.i2.p1.1">Reasoning-Aligned Rubric Tuning (RART), a rubric-refinement
+method that iteratively updates the judge’s rubric using a meta-judge
+over the judge’s reasoning, with an ablation isolating what reasoning
+alignment contributes.</p>
+</div></li>
+<li class="ltx_item" id="S1.I1.i3" style="list-style-type:none;padding-top:2.0pt;"><span class="ltx_tag ltx_tag_item">3.</span>
+<div class="ltx_para ltx_noindent" id="S1.I1.i3.p1">
+<p class="ltx_p" id="S1.I1.i3.p1.1">An operational design for serving, pairing a two-role
+deployment (quality gate and critic in a self-reflection revision
+loop) with continuous drift monitoring that triggers re-tuning behind
+a human review gate.</p>
+</div></li>
+<li class="ltx_item" id="S1.I1.i4" style="list-style-type:none;padding-top:2.0pt;"><span class="ltx_tag ltx_tag_item">4.</span>
+<div class="ltx_para" id="S1.I1.i4.p1">
+<p class="ltx_p" id="S1.I1.i4.p1.1">Practical takeaways for shipping LLM judges at scale.</p>
+</div></li>
+</ol><blockquote class="ltx_quote" id="S3.SS1.p2.1">
+<p class="ltx_p" id="S3.SS1.p2.1.1"><span class="ltx_text ltx_font_bold" id="S3.SS1.p2.1.1.1">Definition.</span> Each agentic workflow is defined as a sequence of <span class="ltx_text ltx_font_italic" id="S3.SS1.p2.1.1.2">workflow steps</span>
+whose final output is returned as the actual Conductor response <math alttext="o_{i}" class="ltx_Math" display="inline" id="S3.SS1.p2.m1" intent=":literal"><semantics><msub><mi>o</mi><mi>i</mi></msub><annotation encoding="application/x-tex">o_{i}</annotation></semantics></math>. Each step specifies a string with a natural-language <span class="ltx_text ltx_font_italic" id="S3.SS1.p2.1.1.3">subtask</span>,
+an integer id corresponding to the <span class="ltx_text ltx_font_italic" id="S3.SS1.p2.1.1.4">assigned worker agent</span> responsible for performing that subtask, and an <span class="ltx_text ltx_font_italic" id="S3.SS1.p2.1.1.5">access list</span> indexing which subtask solutions from the previous steps to include in the worker’s context.</p>
+</blockquote></article></div></body></html>
