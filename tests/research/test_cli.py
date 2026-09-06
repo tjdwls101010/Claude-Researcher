@@ -74,3 +74,31 @@ def test_doctor_reports_each_prerequisite(tmp_path, capsys):
     for c in out["checks"]:
         if not c["ok"]:
             assert "install" in c["detail"] or "->" in c["detail"], c
+
+
+def test_json_flag_works_after_the_subcommand_and_on_argparse_errors(tmp_path, capsys):
+    run(capsys, ["--root", str(tmp_path), "init", "toy"])
+    code, out = run(capsys, ["--root", str(tmp_path), "status", "toy", "--json"])
+    assert code == 0 and out["phase"] == "exploring"
+    code, out = run(capsys, ["--root", str(tmp_path), "--json", "claim", "add", "toy"])
+    assert code == 2 and out["status"] == "error" and "--kind" in out["error"]
+
+
+def test_run_start_and_registry_through_the_cli(tmp_path, capsys):
+    fake = Path(__file__).with_name("fixtures") / "fake_experiment.py"
+    root = ["--root", str(tmp_path), "--json"]
+    run(capsys, root + ["init", "toy"])
+    code, out = run(capsys, root + ["run", "start", "toy", "--name", "pilot", "--seeds", "1,2", "--", sys.executable, str(fake)])
+    assert code == 0 and out["run_id"] == "r001" and out["class"] == "exploratory"
+    code, out = run(capsys, root + ["run", "start", "toy", "--name", "bad", "--seeds", "1", "--", sys.executable, str(fake), "--fail"])
+    assert code == 5 and out["run_id"] == "r002"
+    code, out = run(capsys, root + ["registry", "toy", "--min-seeds", "3"])
+    assert code == 0 and out["entries"] == 2 and out["findings"] and out["excluded_runs"][0]["run_id"] == "r002"
+    code, out = run(capsys, root + ["registry", "toy", "--min-seeds", "3", "--strict"])
+    assert code == 6
+    code, out = run(capsys, root + ["run", "start", "toy", "--name", "c", "--confirmatory", "--prereg", "P01", "--", sys.executable, str(fake)])
+    assert code == 6 and any("P01" in f["message"] for f in out["findings"]) and any("design review" in f["message"] for f in out["findings"])
+    code, out = run(capsys, root + ["status", "toy"])
+    assert out["registry"]["entries"] == 2 and out["runs"][0]["sealed"] is True and out["prereg"] is None
+    code, out = run(capsys, root + ["prereg", "check", "toy"])
+    assert code == 3

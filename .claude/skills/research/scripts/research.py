@@ -33,9 +33,34 @@ def eprint(*a):
     print(*a, file=sys.stderr, flush=True)
 
 
+class _Parser(argparse.ArgumentParser):
+    """argparse errors go through the same envelope as every other failure when --json was asked for."""
+
+    def error(self, message):
+        argv = sys.argv[1:] if _CURRENT_ARGV is None else _CURRENT_ARGV
+        if "--json" in argv:
+            print(json.dumps({"status": "error", "paths": [], "findings": [], "error": f"{self.prog}: {message}"}, ensure_ascii=False))
+            sys.exit(2)
+        super().error(message)
+
+
+_CURRENT_ARGV = None
+
+
 def main(argv=None) -> int:
+    global _CURRENT_ARGV
+    _CURRENT_ARGV = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    argv = _CURRENT_ARGV
+    tail = []
+    if "--" in argv:  # everything after `--` is the experiment's own command line, never parsed here
+        i = argv.index("--")
+        argv, tail = argv[:i], argv[i + 1:]
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    args.argv = tail
     try:
         result = args.func(args)
     except ResearchError as exc:
@@ -75,15 +100,26 @@ def emit(args, result: dict, code: int) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="research.py", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = _Parser(prog="research.py", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--version-info", action="version", version=f"research {__version__}", help="print the tool version and exit")
     p.add_argument("--root", help="project root containing projects/ and papers/ (default: $CLAUDE_PROJECT_DIR, else cwd)")
     p.add_argument("--json", action="store_true", help="print the result as JSON: {status, paths, findings, error}")
-    sub = p.add_subparsers(dest="cmd", required=True, metavar="COMMAND")
+    sub = p.add_subparsers(dest="cmd", required=True, metavar="COMMAND", parser_class=_Parser)
     from research import cli  # noqa: E402
 
     cli.register(sub)
+    _add_shared(p)
     return p
+
+
+def _add_shared(parser):
+    """--root and --json are accepted after any (sub)command too, so `status toy --json` works."""
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for child in action.choices.values():
+                child.add_argument("--root", dest="root", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+                child.add_argument("--json", dest="json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+                _add_shared(child)
 
 
 if __name__ == "__main__":

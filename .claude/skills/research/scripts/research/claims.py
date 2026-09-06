@@ -17,18 +17,31 @@ from savepaper.frontmatter import dump, parse
 from .errors import GateError, InputError, NotFoundError
 from .project import Layout, now_iso, write_readme
 
-KINDS = ("observation", "hypothesis", "mechanism", "prediction", "alternative", "evidence")
-AUTHORS = ("human:seongjin", "claude")
-STATUSES = ("candidate", "supported", "refuted", "dropped")
-STATISTICS = ("mean", "std", "n", "min", "max")
+from .meta import AUTHORS, KINDS, STATISTICS  # noqa: E402
+from .meta import CLAIM_STATUSES as STATUSES  # noqa: E402
 _ID = re.compile(r"^C(\d{2,})\.md$")
+_CID = re.compile(r"C\d{2,}")
 
 
 def _find(lay: Layout, cid: str) -> Path:
+    if not _CID.fullmatch(cid or ""):
+        raise InputError(f"claim id {cid!r} must look like C01")
     path = lay.claims / f"{cid}.md"
-    if not _ID.match(path.name) or not path.exists():
+    if not path.is_file():
         raise NotFoundError(f"no claim {cid} in {lay.rel(lay.claims)}")
     return path
+
+
+def next_id(lay: Layout) -> str:
+    nums = [int(_ID.match(p.name).group(1)) for p in lay.claims.glob("C*.md") if _ID.match(p.name)]
+    return f"C{(max(nums) + 1 if nums else 1):02d}"
+
+
+def _text(d: dict, key: str, what: str) -> str:
+    v = d.get(key)
+    if not isinstance(v, str) or not v.strip():
+        raise InputError(f"{key}: required non-empty string ({what})")
+    return v.strip()
 
 
 def list_claims(lay: Layout) -> list[dict]:
@@ -77,9 +90,13 @@ def resolve_evidence(lay: Layout, evidence: list[dict]) -> list[dict]:
     registry = {}
     if lay.registry_json.exists():
         try:
-            registry = {e["id"]: e for e in json.loads(lay.registry_json.read_text(encoding="utf-8")).get("entries", [])}
-        except (ValueError, KeyError, TypeError):
-            findings.append({"severity": "major", "message": "registry.json is unreadable", "location": lay.rel(lay.registry_json)})
+            data = json.loads(lay.registry_json.read_text(encoding="utf-8"))
+            entries = data.get("entries") if isinstance(data, dict) else None
+            if not isinstance(entries, list):
+                raise TypeError("entries")
+            registry = {str(e.get("id")): e for e in entries if isinstance(e, dict) and isinstance(e.get("statistics"), dict)}
+        except (ValueError, KeyError, TypeError, AttributeError):
+            findings.append({"severity": "major", "message": "registry.json is unreadable or not {entries: [...]} (rebuild it with `registry`)", "location": lay.rel(lay.registry_json)})
     for i, e in enumerate(evidence):
         if "registry" in e:
             entry = registry.get(e["registry"])
@@ -89,9 +106,11 @@ def resolve_evidence(lay: Layout, evidence: list[dict]) -> list[dict]:
                 findings.append({"severity": "major", "message": f"registry entry {e['registry']} has no statistic {e['statistic']!r}", "location": f"evidence[{i}]"})
         else:
             src = e["source"]
-            path = lay.root / src.lstrip("/") if src.startswith("/") else lay.root / src
-            if not path.exists():
-                findings.append({"severity": "major", "message": f"source {src} is not a saved paper (save it with /save-paper first)", "location": f"evidence[{i}]"})
+            path = (lay.root / src.lstrip("/")).resolve()
+            sources = lay.papers_sources.resolve()
+            inside = path.parent == sources and path.suffix == ".md" and path.is_file()
+            if not inside:
+                findings.append({"severity": "major", "message": f"source {src} is not a file directly under papers/sources/ (save it with /save-paper first)", "location": f"evidence[{i}]"})
     return findings
 
 
@@ -102,20 +121,17 @@ def add(lay: Layout, d: dict, *, kind: str, by: str, now: str | None = None) -> 
         raise InputError(f"by: must be one of {AUTHORS}")
     if not isinstance(d, dict):
         raise InputError("claim must be a JSON object")
-    if not str(d.get("title") or "").strip():
-        raise InputError("title: required (the claim as one English sentence)")
-    if not str(d.get("description") or "").strip():
-        raise InputError("description: required (one line: what would make this claim true or false)")
+    title = _text(d, "title", "the claim as one English sentence")
+    description = _text(d, "description", "one line: what would make this claim true or false")
     status = d.get("claim_status", "candidate")
     if status not in STATUSES:
         raise InputError(f"claim_status: must be one of {STATUSES}")
     evidence = _check_evidence(d.get("evidence") or [])
-    n = len(list_claims(lay)) + 1
-    path = lay.claims / f"C{n:02d}.md"
+    path = lay.claims / f"{next_id(lay)}.md"
     fm = {
         "type": "Claim",
-        "title": d["title"].strip(),
-        "description": d["description"].strip(),
+        "title": title,
+        "description": description,
         "kind": kind,
         "by": by,
         "claim_status": status,
@@ -145,13 +161,13 @@ def update(lay: Layout, cid: str, patch: dict, *, now: str | None = None) -> Pat
         raise InputError(f"kind: must be one of {KINDS}")
     if "claim_status" in patch and patch["claim_status"] not in STATUSES:
         raise InputError(f"claim_status: must be one of {STATUSES}")
-    for key in ("title", "description"):
-        if key in patch and not str(patch[key] or "").strip():
-            raise InputError(f"{key}: must not be empty")
     new = dict(fm)
-    for key in ("title", "description", "kind", "claim_status", "prereg"):
+    for key in ("title", "description"):
         if key in patch:
-            new[key] = patch[key].strip() if isinstance(patch[key], str) else patch[key]
+            new[key] = _text(patch, key, "must stay a non-empty string")
+    for key in ("kind", "claim_status", "prereg"):
+        if key in patch:
+            new[key] = patch[key]
     if "evidence" in patch:
         new["evidence"] = _check_evidence(patch["evidence"])
     if "body" in patch:

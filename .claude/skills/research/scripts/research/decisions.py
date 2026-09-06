@@ -13,9 +13,9 @@ from pathlib import Path
 from savepaper.frontmatter import dump, parse
 
 from .errors import InputError, NotFoundError
-from .project import Layout, now_iso, write_readme
+from .project import Layout, check_slug, now_iso, write_readme
 
-DECIDERS = ("human:seongjin", "claude")
+from .meta import DECIDERS  # noqa: E402
 MIN_OPTIONS, MAX_OPTIONS = 2, 4
 _ID = re.compile(r"^(\d{3})-")
 
@@ -72,6 +72,7 @@ def validate_proposal(lay: Layout, d: dict) -> None:
         if label in labels:
             raise InputError(f"options[{i}].label: duplicate label {label!r}")
         labels.append(label)
+        o["label"] = label  # persisted exactly as validated
         if not str(o.get("fails_when") or "").strip():
             raise InputError(f"options[{i}].fails_when: required — what breaks if this option is wrong")
         ev = o.get("evidence") or []
@@ -79,8 +80,14 @@ def validate_proposal(lay: Layout, d: dict) -> None:
             raise InputError(f"options[{i}].evidence: must be a list of source/registry references")
         if not ev and not str(o.get("evidence_gap") or "").strip():
             raise InputError(f"options[{i}].evidence_gap: required when evidence is empty (why there is none)")
-    if d.get("recommendation") not in labels:
+    if str(d.get("recommendation") or "").strip() not in labels:
         raise InputError(f"recommendation: must be one of {labels}")
+    d["recommendation"] = str(d["recommendation"]).strip()
+    if d.get("slug") is not None:
+        try:
+            check_slug(str(d["slug"]))
+        except InputError as exc:
+            raise InputError(f"slug: {exc}")
     sup = d.get("supersedes")
     if sup is not None:
         known = [did for did, _, _ in list_decisions(lay)]
@@ -90,7 +97,8 @@ def validate_proposal(lay: Layout, d: dict) -> None:
 
 def propose(lay: Layout, d: dict, *, now: str | None = None) -> Path:
     validate_proposal(lay, d)
-    n = len(list_decisions(lay)) + 1
+    nums = [int(_ID.match(p.name).group(1)) for p in lay.decisions.glob("*.md") if _ID.match(p.name)]
+    n = (max(nums) + 1) if nums else 1
     slug = d.get("slug") or _slugify(d["title"], "decision")
     path = lay.decisions / f"{n:03d}-{slug}.md"
     fm = {

@@ -110,3 +110,19 @@ def test_summary_counts_open_and_agreement_by_decider(lay):
     assert s["asked_ratio"] == pytest.approx(2 / 3)
     assert s["agreement"]["human:seongjin"] == {"n": 1, "recommended_chosen": 0}
     assert s["agreement"]["claude"] == {"n": 1, "recommended_chosen": 1}
+
+
+def test_labels_are_normalised_once_and_slug_is_validated(lay):
+    d = good()
+    d["options"][0]["label"] = " A "
+    fm, _ = parse(decisions.propose(lay, d, now=NOW).read_text())
+    assert fm["options"][0]["label"] == "A" and fm["recommendation"] == "A"
+    with pytest.raises(InputError) as exc:
+        decisions.propose(lay, good(slug="../x"), now=NOW)
+    assert "slug" in str(exc.value)
+
+
+def test_decision_ids_allocate_past_gaps(lay):
+    p = decisions.propose(lay, good(), now=NOW)
+    p.rename(lay.decisions / "005-moved.md")
+    assert decisions.propose(lay, good(title="n"), now=NOW).name.startswith("006-")

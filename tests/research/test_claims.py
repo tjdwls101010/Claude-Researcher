@@ -87,3 +87,40 @@ def test_dropped_claims_stay_listed(lay):
     rows = claims.list_claims(lay)
     assert [(c["id"], c["claim_status"]) for c in rows] == [("C01", "dropped")]
     assert claims.by_status(lay)["dropped"] == ["C01"]
+
+
+@pytest.mark.parametrize("cid", ["../../x/claims/C01", "/tmp/C01", "C01/../C02", "c01", "C"])
+def test_claim_ids_are_validated_before_touching_the_filesystem(lay, cid):
+    claims.add(lay, hyp(), kind="hypothesis", by="claude", now=NOW)
+    with pytest.raises((InputError, __import__("research.errors", fromlist=["NotFoundError"]).NotFoundError)):
+        claims.update(lay, cid, {"description": "x"}, now=NOW)
+
+
+def test_ids_allocate_past_gaps_and_never_overwrite(lay):
+    claims.add(lay, hyp(), kind="hypothesis", by="claude", now=NOW)
+    (lay.claims / "C01.md").rename(lay.claims / "C07.md")
+    assert claims.add(lay, hyp(title="next"), kind="hypothesis", by="claude", now=NOW).name == "C08.md"
+    assert parse((lay.claims / "C07.md").read_text())[0]["title"] == hyp()["title"]
+
+
+@pytest.mark.parametrize("src", [".", ".claude/harness-spec.md", "/papers/sources/../../CLAUDE.md", "/papers/README.md"])
+def test_only_files_under_papers_sources_count_as_sources(lay, tmp_path, src):
+    (tmp_path / "papers" / "sources").mkdir(parents=True)
+    (tmp_path / "papers" / "README.md").write_text("x")
+    (tmp_path / "CLAUDE.md").write_text("x")
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "harness-spec.md").write_text("x")
+    claims.add(lay, hyp(), kind="hypothesis", by="claude", now=NOW)
+    with pytest.raises(GateError):
+        claims.update(lay, "C01", {"claim_status": "supported", "evidence": [{"source": src, "locator": "§1"}]}, now=NOW)
+
+
+def test_non_string_fields_and_bad_registry_are_named_not_tracebacks(lay):
+    with pytest.raises(InputError) as exc:
+        claims.add(lay, hyp(title=123), kind="hypothesis", by="claude", now=NOW)
+    assert "title" in str(exc.value)
+    claims.add(lay, hyp(), kind="hypothesis", by="claude", now=NOW)
+    lay.registry_json.write_text("[]")
+    with pytest.raises(GateError) as exc:
+        claims.update(lay, "C01", {"claim_status": "supported", "evidence": [{"registry": "r1/a/b", "statistic": "mean"}]}, now=NOW)
+    assert "registry" in exc.value.findings[0]["message"]
