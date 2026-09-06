@@ -16,35 +16,32 @@ From the project root:
 python3 .claude/skills/save-paper/scripts/save_paper.py save <arXiv url | id | title>
 ```
 
-`--help` (and `save --help`) is the definition of every flag and exit code; do not work from memory of them. `doctor` names any missing tool and its install command. When the run ends, relay its last line to 성진 unchanged — `status`, `coverage`, `verified`, `figures`, `losses`, `described`, `cost` and the path are the whole report.
+`--help` (and `save --help`) is the definition of every flag and exit code; do not work from memory of them. `doctor` names any missing tool and its install command. When the run ends, relay its last line to 성진 unchanged — `status`, `coverage`, `verified`, `figures`, `losses`, `described`, `cost`, the path and `note=` are the whole report.
 
-Then write the note (below). Saving without the note is a half-finished job unless 성진 said otherwise.
+The note is a step of `save`, not a job after it: the script runs the `paper-note` agent headlessly on the source it just published and reports the note in the same line. `--no-note` is something 성진 asks for, never a saving you make for them.
 
 ## What the result means
 
 - **Exit 0, `verified` present** — every paragraph, table cell, caption, footnote and reference of the arXiv HTML is in the Markdown. Cite freely.
 - **Exit 6** — the file *was* saved, but without `verified`. `conversion.known_losses` and `conversion.check.missing` say what is not there. Read the file, but before quoting a number or claim from the region that is missing, tell 성진 the source is unverified there. Saving anyway is deliberate: a partial source you can see beats a silent failure you cannot.
-- **`conversion.route: pdf`** — arXiv had no HTML, so the text came from the PDF. Math is mostly gone and figures entirely; the file is never verified. Say so when you use it, and tell the note agent.
+- **`conversion.route: pdf`** — arXiv had no HTML, so the text came from the PDF. Math is mostly gone and figures entirely; the file is never verified. Say so when you use it (the note agent is told by the script).
 - **`up-to-date`** — the fingerprint matched; nothing was rewritten. **`new-version-available`** — arXiv has a newer version than the saved one; nothing was rewritten either (see below).
 - **Exit 3 with candidates** — a title search matched several papers. This is a decision, not an error.
 - **`WARNING: figure alt text skipped`** — no OpenRouter key was found, so the images have empty alt. The figures are still there as PNGs; `describe <id>` fills the text once the key exists.
+- **`note=written check=ok`** — `papers/<id>.md` exists and passed `note-check`'s structural check; `missing=` counts result numbers and equations the note lacks (review pointers, not failures). `runner=codex(fallback from claude)` means Claude declined the source (security papers do this) and codex wrote it with the same agent body. **Exit 8** — the source is fine but the note is not: `note.error` in the JSON row says whether it was `auth`, `denied`, `timeout`, `crash`, `refused` or `nofile`; `note <id>` retries without touching the source. Anything the agent could not decide arrives in `note.undecided` (jsonl) — hand it to 성진; the agent cannot ask.
 
 The check proves the Markdown matches the HTML arXiv served, not that the HTML is the whole paper. A warning about the TeX `\bibitem` count differing is the one signal of the latter; if it appears, mention it.
 
 ## Decisions that are the user's
 
 - **Which paper a title meant.** Never pick the first candidate: the search for a famous title returns a dozen "X is all you need" variants, and choosing one silently saves a different paper under a different id. Put the candidates (title, id, year) to 성진 with `AskUserQuestion`; the JSON marks an `exact_title` match, which is a good default to propose, not to assume.
-- **Overwriting on a new version.** A note has been written against the saved version, and a new version can change numbers. Ask before re-saving with `--version N` or `--force`, and re-run the note afterwards.
+- **Overwriting on a new version.** A note has been written against the saved version, and a new version can change numbers. Ask before re-saving with `--version N` or `--force`; the note is rewritten in the same run.
 
-Alt text and the note are *not* decisions any more: both run by default. Turning either off (`--no-describe`, or skipping the note) is something 성진 asks for, not something you save them money on.
+Alt text and the note are *not* decisions any more: both run by default. Turning either off (`--no-describe`, `--no-note`) is something 성진 asks for, not something you save them money on.
 
 ## Korean note
 
-1. The source exists; alt text is filled unless the key was missing (the agent then reads the PNGs itself, slower and less precise).
-2. Delegate to the `paper-note` agent with both absolute paths: the source `papers/sources/<id>.md` and the target `papers/<id>.md`. The agent's own body carries the rules; do not restate them. If the source came through the PDF route, say so in the delegation so the agent does not invent the missing figures.
-3. Several papers saved together get one agent each, launched in parallel — they touch different files and each reports for itself, so nothing is gained by serialising them.
-4. The agent ends by running `note-check` and reporting its output. If it reports undecided points, those go to 성진 — the agent cannot ask.
-5. Run `save_paper.py index` so `papers/README.md` lists the notes.
+`save`, `batch` and `note <id>` all write it through the same step: the agent gets the two absolute paths plus the conversion facts the frontmatter records (route, coverage, missing blocks, empty alts), so nothing about the source has to be relayed by hand. Re-saving a new version rewrites the note; a rerun of `batch` over already-saved ids writes only the notes that are missing. A codex cross-check of a note against its source is not part of the pipeline — do it with the `codex` skill only when 성진 asks for it, and fix a note by delegating to `paper-note` directly with the review attached.
 
 ## Traps
 

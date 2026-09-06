@@ -47,6 +47,7 @@ class Outcome:
     figures: Optional[str] = None  # "28/28"
     describe: Optional[dict] = None
     warnings: list[str] = field(default_factory=list)
+    note: Optional[dict] = None  # NoteResult.as_dict(); filled by the CLI after publish, never by save_one
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -63,6 +64,10 @@ class Outcome:
             parts.append(f"described={self.describe.get('count')}/{self.describe.get('count', 0) + self.describe.get('failed', 0)} cost=${self.describe.get('cost', 0)}")
         if self.path:
             parts.append(self.path)
+        if self.note:
+            from .note import NoteResult
+
+            parts.append(NoteResult(**{k: v for k, v in self.note.items() if k in NoteResult.__dataclass_fields__}).summary())
         for w in self.warnings:
             if "alt text skipped" in w:
                 parts.append(f"WARNING: {w}")
