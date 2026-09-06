@@ -1,0 +1,288 @@
+[2mThinking: **Planning specialized conference searches**
+
+[0m
+I’ll check the official NeurIPS pages and media.neurips.cc directly, then verify the ICML 2026 fallback on icml.cc if needed.[0m
+
+[32msubagent[0m(action: [32m'spawn'[39m,
+     description: [32m'Verify NeurIPS style'[39m,
+     subagent_profile: [32m'default'[39m,
+     model_category: [32m'fast'[39m,
+     run_in_background: [33mtrue[39m,
+     prompt: [32m'Search only official NeurIPS domains for the 2026 main conference LaTeX style file or Styles.zip. Inspect the actual CFP/Paper Information/Style Files page and linked file. Return exact source page URL, exact download URL, evidence text, and whether file is genuinely 2026. Do not rely on snippets.'[39m)
+
+[2m > task_id: 7yOMI9KqStQDRfqD
+status: running
+you will be notified for result.[0m
+
+[32msubagent[0m(action: [32m'spawn'[39m,
+     description: [32m'Verify ICML fallback'[39m,
+     subagent_profile: [32m'default'[39m,
+     model_category: [32m'fast'[39m,
+     run_in_background: [33mtrue[39m,
+     prompt: [32m'Search only official icml.cc pages for ICML 2026 author instructions and the exact icml2026.sty or official style zip download URL. Inspect actual pages/files. Return exact linked-from page URL, exact download URL, quoted evidence, and verify filename/content year.'[39m)[2m [call_0yWG4zOTp2EUO3vrhdLPbWx9|fc_041ebd0837a32602016a9d7b66ad9c87d08c6e9fcd38e27952]
+
+[2m > task_id: 0uUJxml10ZPpm38n
+status: running
+you will be notified for result.[0m
+
+[32mwebsearch[0m(objective: [32m'Find the official NeurIPS 2026 main conference LaTeX style file download, preferably neurips_2026.sty or Styles.zip, linked by an official NeurIPS 2026 author page; determine publication status.'[39m,
+     search_queries: [ [32m'NeurIPS 2026 style files'[39m, [32m'NeurIPS 2026 Styles.zip'[39m, [32m'media.neurips.cc neurips_2026.sty'[39m ],
+     mode: [32m'advanced'[39m)[2m [call_I13tZm7OS3uQCgQuqbZA5pVP|fc_041ebd0837a32602016a9d7b6bd64087d0a26379699417f06e]
+
+[2m > {"session_id":"dLK8QUcyooUTrdWk","results":[{"source_id":"tW2uqNKmld6IN5BH1-5IB","url":"https://neurips.cc/","title":"NeurIPS 2026","publish_date":null,"excerpts":["# NeurIPS 2026\nThe Fortieth Annual Conference on Neural Information Processing Systems\nSydney\n(Main)\nDec 6 - 12\nPricing\nRegistration\nAtlanta\n(Satellite)\nDec 9 - 13\nPricing\nRegistration\nParis\n(Satellite)\nDec 9 - 13\nParis Registration Information Coming Soon\n[View Hotel Information](https://neurips.cc/Conferences/2026/Hotels)\n\n...\n\n## Latest Announcements\n* The Career site is open\n* See this [blog post](https://blog.neurips.cc/2026/08/27/navigating-neurips-2026-a-breakdown-of-the-multi-site-registration-process/) for details on the registration process\n* See hotel information for hotel booking links.\n* Aug 25, 2026: NeurIPS has no affiliation or partnership with any third-party service that claims to collect registration or housing information on our behalf. The only authorized source for NeurIPS registration and Housing is through the official NeurIPS website.\n\n...\n\n## About the Conference\nThe conference was founded in 1987 and is now a multi-track interdisciplinary annual meeting that includes invited talks, demonstrations, symposia, and oral and poster presentations of refereed papers.\n\n...\n\n### NeurIPS logo\nThe NeurIPS Logo above may be used on presentations. Right-click and choose\ndownload. It is a vector graphic and may be used at any scale.\n\n#### Useful links\n* Press\n* [Proceedings](https://proceedings.neurips.cc/)"]},{"source_id":"5lwIImWEDsYJnwTx4XEap","url":"https://www.overleaf.com/latex/templates/formatting-instructions-for-neurips-2026/bjdwqfdkyftc","title":"Formatting Instructions For NeurIPS 2026","publish_date":null,"excerpts":["# Formatting Instructions For NeurIPS 2026\n[Open as Template](https://www.overleaf.com/project/new/template/51698?id=1130296849&latexEngine=pdflatex&mainFile=neurips_2026.tex&templateName=Formatting+Instructions+For+NeurIPS+2026&texImage=texlive-full%3A2025.1) View Source [View\nPDF](https://www.overleaf.com/latex/templates/formatting-instructions-for-neurips-2026/bjdwqfdkyftc.pdf)\n**Author:**\nNeurIPS 2026 Program Chairs\n**Last Updated:**\n2 months ago\n**License:**\nCreative Commons CC BY 4.0\n**Abstract:**\nFormatting Instructions For NeurIPS 2026\nofficial template\nCall for papers (with template and submission instructions): https://neurips.cc/Conferences/2026/CallForPapers\n\n...\n\n## Source\n```\n\\documentclass{article}\n\n% if you need to pass options to natbib, use, e.g.:\n%     \\PassOptionsToPackage{numbers, compress}{natbib}\n% before loading neurips_2026\n\n% The authors should use one of these tracks.\n% Before accepting by the NeurIPS conference, select one of the options below.\n% 0. \"default\" for submission\n\\usepackage{neurips_2026}\n% the \"default\" option is equal to the \"main\" option, which is used for the Main Track with double-blind reviewing.\n% 1. \"main\" option is used for the Main Track\n%  \\usepackage[main]{neurips_2026}\n% 2. \"position\" option is used for the Position Paper Track\n%  \\usepackage[position]{neurips_2026}\n% 3. \"eandd\" option is used for the Evaluations & Datasets Track\n % \\usepackage[eandd]{neurips_2026}\n% 4. \"creativeai\" option is used for the Creative AI Track\n%  \\usepackage[creativeai]{neurips_2026}\n% 5. \"sglblindworkshop\" option is used for the Workshop with single-blind reviewing\n % \\usepackage[sglblindworkshop]{neurips_2026}\n% 6. \"dblblindworkshop\" option is used for the Workshop with double-blind reviewing\n%  \\usepackage[dblblindworkshop]{neurips_2026}\n% 7. \"education\" option is used for the Education Track\n%  \\usepackage[education]{neurips_2026}\n\n% After being accepted, the authors should add \"final\" behind the track to compile a camera-ready version.\n% 1. Main Track\n % \\usepackage[main, final]{neurips_2026}\n% 2. Position Paper Track\n%  \\usepackage[position, final]{neurips_2026}\n% 3. Evaluations & Datasets Track\n % \\usepackage[eandd, final]{neurips_2026}\n```\n\n...\n\n```\nAuthors are required to use the NeurIPS \\LaTeX{} style files obtainable at the NeurIPS website as indicated below. Please make sure you use the current files and not previous versions. Tweaking the style files may be grounds for desk rejection.\n\n\\subsection{Retrieval of style files}\n\nThe style files for NeurIPS and other conference information are available on the website at\n\\begin{center}\n  \\url{https://neurips.cc}.\n\\end{center}\n% The file \\verb+neurips_2026.pdf+ contains these instructions and illustrates the various formatting requirements your NeurIPS paper must satisfy.\n\nThe only supported style file for NeurIPS 2026 is \\verb+neurips_2026.sty+, rewritten for \\LaTeXe{}. \\textbf{Previous style files for \\LaTeX{} 2.09,  Microsoft Word, and RTF are no longer supported.}\n\nThe \\LaTeX{} style file contains three optional arguments: \n\\begin{itemize}\n```\n\n...\n\n```\nThe file \\verb+neurips_2026.tex+ may be used as a ``shell'' for writing your paper. All you have to do is replace the author, title, abstract, and text of the paper with your own.\n\nThe formatting instructions contained in these style files are summarized in Sections \\ref{gen_inst}, \\ref{headings}, and \\ref{others} below.\n\n```\n\n...\n\n```\nIf you wish to load the \\verb+natbib+ package with options, you may add the\nfollowing before loading the \\verb+neurips_2026+ package:\n\\begin{verbatim}\n   \\PassOptionsToPackage{options}{natbib}\n\\end{verbatim}\n\nIf \\verb+natbib+ clashes with another package you load, you can add the optional\nargument \\verb+nonatbib+ when loading the style file:\n\\begin{verbatim}\n   \\usepackage[nonatbib]{neurips_2026}\n\\end{verbatim}\n\nAs submission is double blind, refer to your own published work in the third\nperson. That is, use ``In the previous work of Jones et al.\\ [4],'' not ``In our\n```"]},{"source_id":"1bUYWjobFLt5WpVE9lUUv","url":"https://neurips.cc/Conferences/2015/PaperInformation/StyleFiles","title":"NIPS Style Files - NeurIPS 2026","publish_date":null,"excerpts":["* Select Year: (2026)\n+ 2026\n+ 2025\n+ 2024\n+ 2023\n+ 2022\n+ 2021\n+ 2020\n+ 2019\n+ 2018\n+ 2017\n+ 2016\n+ 2015\n+ 2014\n+ 2013\n+ 2012\n+ 2011\n+ 2010\n+ 2009\n+ 2008\n+ 2007\n+ 2006\n+ Earlier Conferences\n* Dates\n* Submit\n+ Call for Papers\n+ Main Track Handbook\n+ Reviewing Guidelines\n+ Call for Evaluations & Datasets\n+ Evaluations and Datasets FAQ\n\n...\n\n# NIPS Style Files\n* [nips15submit_e.sty](http://media.nips.cc/Conferences/2015/Styles/nips15submit_e.sty) : style file for LaTeX 2e (preferred)\n* [nips15submit_09.sty](http://media.nips.cc/Conferences/2015/Styles/nips15submit_09.sty) style file for LaTeX 2.09 (obsolete, less preferred)"]},{"source_id":"5eKfVuRS0Jy2z9AU7gqyY","url":"https://neurips.cc/Conferences/2023/PaperInformation/StyleFiles","title":"NeurIPS 2023 Style Files","publish_date":null,"excerpts":["* Select Year: (2026)\n+ 2026\n+ 2025\n+ 2024\n+ 2023\n+ 2022\n+ 2021\n+ 2020\n+ 2019\n+ 2018\n+ 2017\n+ 2016\n+ 2015\n+ 2014\n+ 2013\n+ 2012\n+ 2011\n+ 2010\n+ 2009\n+ 2008\n+ 2007\n+ 2006\n+ Earlier Conferences\n* Dates\n* Submit\n+ Call for Papers\n+ Main Track Handbook\n+ Reviewing Guidelines\n+ Call for Evaluations & Datasets\n+ Evaluations and Datasets FAQ\n\n...\n\n+ AI Reviewing Experiment\n* Attend\n+ Hotels\n+ Visa Information\n* Organizers\n+ Organizing Committee\n+ NeurIPS Board\n+ NeurIPS Foundation\n* Exhibitors\n+ 2026 Exhibitors\n+ Portal\n+ EAC Information\n\n...\n\n# NeurIPS 2023 Style Files\n* [neurips_2023.tex](https://media.neurips.cc/Conferences/NeurIPS2023/Styles/neurips_2023.tex) -- LaTeX template\n* [neurips_2023.sty](https://media.neurips.cc/Conferences/NeurIPS2023/Styles/neurips_2023.sty) -- style file for LaTeX 2e"]},{"source_id":"bdVSQLDoV7IQgvFeWxV4_","url":"https://neurips.cc/Downloads","title":"Downloads - NeurIPS","publish_date":null,"excerpts":["Downloads 2026\nNumber of events: 25\n2026\n2025\n2024\n2023\n2022\n2021\n2020\n2019\n2018\n2017\n2016\n2015\n2014\n2013\n2012\n2011\n2010\n2009\n2008\n2007\n2006\n2005\n2004\n2003\n2002 Successful Page Load\nNeurIPS uses cookies for essential functions only. We do not sell your personal\ninformation. Our Privacy Policy » | Accept\nNeurIPS logo\nThe NeurIPS Logo above may be used on presentations. Right-click and choose download. It is a vector graphic and may be used at any scale.\nUseful links\nPress\nProceedings\nContact\n1269 Law Street, San Diego CA 92109 Email Phone: +1-858-453-4100 x 1623 NeurIPS Proceedings\nSelect Year: (2026)\n2026\n2025\n2024\n2023\n2022\n2021\n2020\n2019\n2018\n2017\n2016\n2015\n2014\n2013\n2012\n2011\n2010\n2009\n2008\n2007\n2006\nEarlier Conferences\nDates\nSubmit\nCall for Papers\nMain Track Handbook\nReviewing Guidelines\nCall for Evaluations & Datasets\nEvaluations and Datasets FAQ\nReviewing Guidelines\nCall for Position Papers\nCall for Reproducibility\nCall for Tutorials\nCall For Competitions\nCompetition Track Reviewing Guidelines\nCall for Workshops\nCall For Affinity Events\nCall for Educational Resources\nCall For Creative AI\nCall for Social Events\nCall for Journal Papers\nCall for Expo\nAI Reviewing Experiment\nAttend\nHotels\nVisa Information\nAttending with Children\nOrganizers\nOrganizing Committee\nNeurIPS Board\nNeurIPS Foundation\nExhibitors\n2026 Exhibitors\nPortal"]},{"source_id":"ByZIsqgVO3b6AbmM-4OvZ","url":"https://www.typetex.app/templates/neurips/style-file","title":"neurips_2026.sty — Official NeurIPS 2026 Style File","publish_date":null,"excerpts":["# neurips_2026.sty — Official NeurIPS 2026 Style File\nThe LaTeX style file every NeurIPS 2026 submission needs. Free download, pre-loaded in our template, and Overleaf-ready.\n[Open template with neurips_2026.sty](https://www.typetex.app/protected/dashboard?template=neurips) [Official author kit (.zip)](https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip) Download .sty directly\nAlso need the mandatory paper checklist? Download checklist.tex or open the complete template.\n\n## What is neurips_2026.sty?\n`neurips_2026.sty` is the official LaTeX style file for the 2026 Neural Information Processing Systems conference.\nIt controls every aspect of how a NeurIPS paper is typeset: page geometry, fonts, section headings, the bibliography style, and the all-important `\\ack` environment that hides acknowledgments during anonymous review.\nYou can't submit to NeurIPS without it. The conference review system rejects papers that don't conform to the official style, and the easiest way to conform is to drop `neurips_2026.sty` into your project and `\\usepackage{neurips_2026}` .\n\n## Quick usage\n```\n\\documentclass{article}\n\n% For anonymous submission (default):\n\\usepackage{neurips_2026}\n\n% For camera-ready (final) version:\n% \\usepackage[final]{neurips_2026}\n\n\\title{Your Paper Title}\n\\author{%\n  Author One \\\\\n  Affiliation \\\\\n  \\texttt{author@domain} \\And\n  Author Two \\\\\n  Affiliation \\\\\n  \\texttt{author2@domain}\n}\n\n```\n\n...\n\n## Submission mode vs final mode\nIf reviewers see your name in submission mode, your paper can be desk-rejected for de-anonymization. The style file handles this for you — don't hardcode author visibility.\n\n## What about the bibliography style?\n`neurips_2026.sty` sets up a bundled `.bst` file that produces the NeurIPS-specific numbered citation format. You can use it directly with `\\bibliography{refs}` or override with `\\bibliographystyle{plainnat}` if you prefer natbib.\n\n## Frequently asked questions\nWhere do I download neurips_2026.sty?\nThe official source is the NeurIPS 2026 author-kit archive at https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip. The archive contains neurips_2026.sty, neurips_2026.tex, and checklist.tex. TypeTeX also bundles the style file in its NeurIPS project template.\nWhat is inside neurips_2026.sty?\nneurips_2026.sty defines the page geometry (8.5x11, single-column for review, double for camera-ready), font setup (Times Roman 10pt body), section heading style, the \\ack acknowledgments environment, the anonymous-author macros, and a custom bibliography style.\nIt also configures \\if@neuripsfinal which switches between submission (anonymous) and final (camera-ready) modes.\nHow do I use neurips_2026.sty in my LaTeX paper?\nAdd \\usepackage{neurips_2026} for the anonymous review version, or \\usepackage[final]{neurips_2026} for the camera-ready (de-anonymized) version. Make sure neurips_2026.sty is in the same directory as your main.tex or somewhere on TEXINPUTS.\nWhy does \\providespackage{neurips_2026} matter?\nneurips_2026.sty starts with \\ProvidesPackage{neurips_2026}[2026/05/01 v1.0 NeurIPS 2026 author kit]. Some search results and grep snippets show \\providespackage (lowercase) — that's just a casing artifact in indexed text.\n\n...\n\nYes. Add \\usepackage{natbib} after \\usepackage{neurips_2026}. The default bibliography style configured by neurips_2026.sty is compatible with both \\bibliographystyle{plainnat} and the bundled NeurIPS-specific .bst file. Use \\citep{} for parenthetical citations and \\citet{} for inline.\nWhere does the .sty file go in Overleaf?\nDrop neurips_2026.sty into the root of your Overleaf project (same level as main.tex). Overleaf finds it automatically — no configuration needed. If you import the TypeTeX NeurIPS template into Overleaf, neurips_2026.sty is already in place.\n\n## Related NeurIPS 2026 resources\nNeurIPS 2026 Template (full) Complete template with main.tex, checklist.tex, and references.bib pre-configured. 9-page limit explained What counts toward the limit, what doesn't, and how to handle the appendix. checklist.tex guide Every question on the NeurIPS Paper Checklist, with example answers."]},{"source_id":"Di8mnHE-MNT_Nrz-fSVnj","url":"https://neurips.cc/Conferences/2026/MainTrackHandbook","title":"Main Track Handbook 2026","publish_date":null,"excerpts":["# (Authors, Reviewers, ACs, and SACs)\n## **Authors**\n### Paper Formatting Instructions\nYou must format your submission using the LaTeX style file for that year. This includes a \"preprint\" option for non-anonymous preprints posted online. This is the **only** template we will accept (note: Microsoft Word template has been discontinued).\nYou can use any version of LaTeX, as long as your PDF obeys the page limit. Submissions that violate the NeurIPS style (e.g., by decreasing margins or font sizes) or page limits may be desk rejected.\n\n...\n\n### Code and Data Submission\nSupplementary material, such as data or source code, may also be submitted separately in a single ZIP file of up to 100MB. The material should be created by the authors that directly supports the submission content, and, as with the main submission, be anonymized.\n\n...\n\n### Preprints\nThe existence of non-anonymous preprints (on arXiv or other online repositories, personal websites, social media) will not result in rejection. If you choose to use the NeurIPS style for the preprint version, you must use the \"preprint\" option rather than the \"final\" option.\n\n...\n\n### Publication of Accepted Submissions\nAll 10 pages of the paper, references, text appendices and the paper checklist should be combined and uploaded as a single PDF. Please refer to the current year’s style file for instructions for submitting the checklist.\n\n...\n\n## **Reviewers**\n### Review Form\nNote that your overall reviewing score should not be decreased as a result of any perceived violations - instead, please simply report them here. Please follow the NeurIPS 2026 Paper Formatting Instructions for guidance (https://neurips.cc/Conferences/2026/CallForPapers).\n14. Code of conduct acknowledgement."]},{"source_id":"DlBoakGPWbSPrxMtKzsSe","url":"https://neurips.cc/Conferences/2017/PaperInformation/StyleFiles","title":"Style Files","publish_date":null,"excerpts":["* Select Year: (2026)\n+ 2026\n+ 2025\n+ 2024\n+ 2023\n+ 2022\n+ 2021\n+ 2020\n+ 2019\n+ 2018\n+ 2017\n+ 2016\n+ 2015\n+ 2014\n+ 2013\n+ 2012\n+ 2011\n+ 2010\n+ 2009\n+ 2008\n+ 2007\n+ 2006\n+ Earlier Conferences\n* Dates\n* Submit\n+ Call for Papers\n+ Main Track Handbook\n+ Reviewing Guidelines\n+ Call for Evaluations & Datasets\n+ Evaluations and Datasets FAQ\n\n...\n\n+ AI Reviewing Experiment\n* Attend\n+ Hotels\n+ Visa Information\n* Organizers\n+ Organizing Committee\n+ NeurIPS Board\n+ NeurIPS Foundation\n* Exhibitors\n+ 2026 Exhibitors\n+ Portal\n+ EAC Information\n\n...\n\n# NOTE: The LaTeX style for NIPS 2017 has changes from previous years. Please use the correct version!\n* [nips_2017.sty](https://media.nips.cc/Conferences/NIPS2017/Styles/nips_2017.sty) -- style file for LaTeX 2e Microsoft Word, RTF, and LaTeX 2.09 are no longer supported."]},{"source_id":"Ouz3oiUr4uMEJkT7cbsxT","url":"https://coauthor.thesify.ai/templates/neurips-2026-latex-template","title":"NeurIPS 2026 Paper Template - Free Official","publish_date":null,"excerpts":["# NeurIPS 2026 Conference Paper\nOfficial NeurIPS 2026 paper template for the Conference on Neural Information Processing Systems. Includes the official NeurIPS style file, anonymous submission support for double-blind review, the required paper checklist, and a structured example paper for machine learning and AI submissions.\nNeurIPS\nconference\nmachine learning\nAI\nofficial\n2026\nAuthor\nNeurIPS Foundation\nLicense\nCC BY 4.0\nSource\n[Official Website →](https://neurips.cc/Conferences/2026/CallForPapers)\nOpen in Coauthor\nStart from the official template and finish your paper in Coauthor.\nNeurIPS 2026 Conference Paper LaTeX template preview\nPreview not available\nIncluded Files\nmain.tex (example)\nchecklist.tex (instructions)\ninstructions.md (instructions)\nneurips_2026.sty (style)\n\n## About This LaTeX Template\nStart a NeurIPS 2026 submission with the official LaTeX style files and an example paper structure for machine learning research. The template supports anonymous review mode and keeps the source organized for fast iteration.\nUse it for main conference, workshop, and spotlight paper drafts that need NeurIPS-style formatting and cloud PDF compilation.\nFiles are sourced from the official NeurIPS 2026 paper template linked from the conference call for papers. Always verify final instructions on the official NeurIPS author page before submission.\n\n### Format Highlights\n* Official NeurIPS 2026 style file\n* Anonymous submission support for double-blind review\n* Required paper checklist included as a separate source file\n* Example paper with required research sections\n* Cloud PDF compilation without local TeX setup\n\n...\n\n## Template Specifications\n### Format Details\n* **Document Type:** LaTeX (.tex)\n* **Category:** Conference Papers\n* **Publisher:** NeurIPS Foundation\n* **License:** CC BY 4.0\n* **Status:** Official template\n\n### Included Files\n* main.tex\n  Official NeurIPS 2026 formatting instructions and starter source\n* checklist.tex\n  Required NeurIPS 2026 paper checklist source\n* instructions.md\n  NeurIPS formatting requirements for AI feedback\n* neurips_2026.sty\n  NeurIPS 2026 style file\n\n...\n\n## Frequently Asked Questions\nWhat files are included in the NeurIPS 2026 Conference Paper template?\nThis template includes 4 files: main.tex, checklist.tex, instructions.md, neurips_2026.sty. The style file ensures your document meets the official formatting requirements.\nWhat are the NeurIPS 2026 Conference Paper format requirements?"]},{"source_id":"TCuGwbBa-Rv6wIVFWKJZF","url":"https://neurips.cc/Conferences/2013/PaperInformation/StyleFiles","title":"NIPS Style Files","publish_date":null,"excerpts":["* Select Year: (2026)\n+ 2026\n+ 2025\n+ 2024\n+ 2023\n+ 2022\n+ 2021\n+ 2020\n+ 2019\n+ 2018\n+ 2017\n+ 2016\n+ 2015\n+ 2014\n+ 2013\n+ 2012\n+ 2011\n+ 2010\n+ 2009\n+ 2008\n+ 2007\n+ 2006\n+ Earlier Conferences\n* Dates\n* Submit\n+ Call for Papers\n+ Main Track Handbook\n+ Reviewing Guidelines\n+ Call for Evaluations & Datasets\n+ Evaluations and Datasets FAQ\n\n...\n\n+ AI Reviewing Experiment\n* Attend\n+ Hotels\n+ Visa Information\n* Organizers\n+ Organizing Committee\n+ NeurIPS Board\n+ NeurIPS Foundation\n* Exhibitors\n+ 2026 Exhibitors\n+ Portal\n\n...\n\n# NIPS Style Files\n* [nips13submit_e.sty](http://media.nips.cc/Conferences/2013/Styles/nips13submit_e.sty) : style file for LaTeX 2e (preferred)\n* [nips13submit_09.sty](http://media.nips.cc/Conferences/2013/Styles/nips13submit_09.sty) style file for LaTeX 2.09 (obsolete, less preferred)"]}]}[0m
+[2mThinking: **Inspecting official page for direct link**
+
+[0m
+
+[32mwebfetch[0m(url: [32m'https://neurips.cc/Conferences/2026/CallForPapers'[39m, timeout: [33m30[39m)[2m [call_XG5ir7F7VkfT7mOJcq96F9JT|fc_041ebd0837a32602016a9d7b757a3887d0b6f5f14cc8ef6513]
+
+[2m > <webfetch-citation source_id="NEFHERx0UIhCwQ5rBx8Lc" />
+
+The Fortieth Annual Conference on Neural Information Processing Systems (NeurIPS 2026) is an interdisciplinary conference that brings together researchers in deep learning, generative AI, core machine learning, neuroscience, statistics, optimization, computer vision, natural language processing, life sciences, natural sciences, social sciences, and other adjacent fields. We invite submissions presenting new and original research on topics including but not limited to the following:
+
+- Computer vision
+- Language and multimodal language models
+- Robotics, embodied systems, and engineering
+- AI/ML for physical sciences
+- AI/ML for health and biotechnology
+- AI/ML for sustainability
+- AI/ML for social sciences
+- AI/ML for creatives
+- Neuroscience and cognitive science
+- Socio-technical aspects of AI
+- Human interaction in AI systems
+- Decision-making, reinforcement learning, and control
+- Generalization and multi-task learning
+- Optimization
+- Probabilistic methods
+- AI and network science
+- Data-centric aspects of AI
+- SysML Infrastructure
+- Theory
+- Deep learning
+- General machine learning: core contributions in supervised and unsupervised methods
+
+Machine learning is a rapidly evolving field, and so we welcome interdisciplinary submissions that do not fit neatly into existing categories. We also encourage in-depth analysis of existing methods that provide new insights in terms of their limitations or behavior beyond the scope of the original work.
+
+Key dates:
+
+- Abstract submission deadline: May 4, 2026 (AOE). All authors must have an OpenReview profile when submitting
+- Full paper submission deadline, including all supplementary materials: May 6, 2026 AOE
+- Author notification: September 24, 2026 AoE
+
+Key links:
+
+- [Paper template](https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip)
+- [Submission link](https://openreview.net/group?id=NeurIPS.cc/2026/Conference)
+- Note that the different tracks (main, [evaluations and datasets](/Conferences/2026/CallForEvaluationsDatasets), [position papers](/Conferences/2026/CallForPositionPapers)) have different calls for papers, different submission portals, and possibly different timelines. Please note that there will be no possibility to switch tracks or types and that papers cannot be submitted to multiple tracks or types simultaneously. Irrelevant or duplicate papers risk desk rejection from all tracks. It is the authors’ responsibility to carefully read the relevant CfPs and identify the track under which they would like their paper evaluated.
+- [MainTrackHandbook](/Conferences/2026/MainTrackHandbook), including our policies regarding reciprocal reviewing, dual submissions and LLMs.[0m
+[2mThinking: **Planning ZIP verification and inspection**
+
+[0m
+
+[32mrepl[0m(title: [32m'Verifying official NeurIPS archive'[39m,
+     code: [32m"const r260906a = await fetch('https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip'); console.log({status:r260906a.status, contentType:r260906a.headers.get('content-type'), length:r260906a.headers.get('content-length'), finalUrl:r260906a.url}); const b260906a = Buffer.from(await r260906a.arrayBuffer()); await fs.writeFile('/Users/seongjin/.aside/u/0/sessions/2026-09-06_dLK8QUcyooUTrdWk/tmp/neurips2026.zip', b260906a); console.log({bytes:b260906a.length, magic:b260906a.subarray(0,4).toString('hex')});"[39m)[2m [call_KsogV7cnhC7DTmLz90I8mVR1|fc_041ebd0837a32602016a9d7b7aa18887d0a761d5ce5f63876c]
+
+[2m > Error: Error: ENOENT: no such file or directory, open '/Users/seongjin/.aside/u/0/sessions/2026-09-06_dLK8QUcyooUTrdWk/tmp/neurips2026.zip'
+    at async open (node:internal/fs/promises:1360:25)
+    at async Object.writeFile (node:internal/fs/promises:2104:14)
+    at async repl.js:1:392
+{
+  status: 200,
+  contentType: 'application/zip',
+  length: '20259',
+  finalUrl: 'https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip'
+}[0m
+[2mThinking: **Refactoring directory creation variables**
+
+[0m
+
+[32mrepl[0m(title: [32m'Inspecting NeurIPS archive files'[39m,
+     code: [32m"const tmp260906b='/Users/seongjin/.aside/u/0/sessions/2026-09-06_dLK8QUcyooUTrdWk/tmp'; await fs.mkdir(tmp260906b,{recursive:true}); const r260906b=await fetch('https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip'); const b260906b=Buffer.from(await r260906b.arrayBuffer()); await fs.writeFile(path.join(tmp260906b,'neurips2026.zip'),b260906b); console.log({bytes:b260906b.length,magic:b260906b.subarray(0,4).toString('hex')});"[39m)[2m [call_AQxSBw3Es0RyjVUIpTBVhaf6|fc_041ebd0837a32602016a9d7b8236e087d0a4e91095fec4f5a6]
+
+[2m > { bytes: 20259, magic: '504b0304' }[0m
+
+[32mbash[0m(title: [32m'Listing NeurIPS style archive'[39m,
+     command: [32m"unzip -l /Users/seongjin/.aside/u/0/sessions/2026-09-06_dLK8QUcyooUTrdWk/tmp/neurips2026.zip && unzip -p /Users/seongjin/.aside/u/0/sessions/2026-09-06_dLK8QUcyooUTrdWk/tmp/neurips2026.zip neurips_2026.sty | sed -n '1,25p'"[39m)[2m [call_f1Gn2tB5LDJ6X5NVhHN643sh|fc_041ebd0837a32602016a9d7b87eb0487d09183842110f2ff27]
+
+[2m > Archive:  /Users/seongjin/.aside/u/0/sessions/2026-09-06_dLK8QUcyooUTrdWk/tmp/neurips2026.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+    19118  06-23-2026 21:48   neurips_2026.tex
+    26167  06-23-2026 21:48   checklist.tex
+    13704  06-23-2026 21:48   neurips_2026.sty
+---------                     -------
+    58989                     3 files
+% partial rewrite of the LaTeX2e package for submissions to the
+% Conference on Neural Information Processing Systems (NeurIPS):
+%
+% - uses more LaTeX conventions
+% - line numbers at submission time replaced with aligned numbers from
+%   lineno package
+% - \nipsfinalcopy replaced with [final] package option
+% - automatically loads times package for authors
+% - loads natbib automatically; this can be suppressed with the
+%   [nonatbib] package option
+% - adds foot line to first page identifying the conference
+% - adds preprint option for submission to e.g. arXiv
+% - conference acronym modified
+% - update foot line to display the track name
+%
+% Roman Garnett (garnett@wustl.edu) and the many authors of
+% nips15submit_e.sty, including MK and drstrip@sandia
+%
+% last revision: January 2026
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{neurips_2026}[2026-01-29 NeurIPS 2026 submission/camera-ready style file]
+
+% declare final option, which creates camera-ready copy
+\newif\if@neuripsfinal\@neuripsfinalfalse[0m
+[2mThinking: **Confirming source citation approach**
+
+[0m
+
+[32msubagent_wait[0m(task_ids: [ [32m'7yOMI9KqStQDRfqD'[39m, [32m'0uUJxml10ZPpm38n'[39m ])[2m [call_e87zsW0cTszuOkm0mdIQNGN6|fc_041ebd0837a32602016a9d7b8fe36087d08573e5a6e971246d]
+
+[2m > <subagent_result task_id="7yOMI9KqStQDRfqD">
+## Result
+
+**Official source page:**  
+https://neurips.cc/Conferences/2026/CallForPapers
+
+The 2026 main-conference CFP identifies itself as “The Fortieth Annual Conference on Neural Information Processing Systems (NeurIPS 2026)” and lists this under **Key links**:
+
+> “Paper template”
+
+linked to the archive below. <citation refs="TqJZY6fXSbom8m8-L9lJL">Official NeurIPS 2026 CFP and its Paper template link.</citation>
+
+**Exact official download URL:**  
+https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip
+
+The URL returns HTTP 200 as an `application/zip` file. <citation refs="NChjij4pT3yREVENl2lvU">Official NeurIPS media-domain ZIP download.</citation>
+
+### Archive inspection
+
+The ZIP contains:
+
+- `neurips_2026.tex`
+- `checklist.tex`
+- `neurips_2026.sty`
+
+Exact evidence inside `neurips_2026.sty`:
+
+```tex
+% last revision: January 2026
+\ProvidesPackage{neurips_2026}[2026-01-29 NeurIPS 2026 submission/camera-ready style file]
+...
+\newcommand{\@neuripsordinal}{40th}
+\newcommand{\@neuripsyear}{2026}
+```
+
+Exact evidence inside `neurips_2026.tex`:
+
+```tex
+\title{Formatting Instructions For NeurIPS 2026}
+```
+
+```tex
+The only supported style file for NeurIPS 2026 is
+\verb+neurips_2026.sty+, rewritten for \LaTeXe{}.
+```
+
+## Assessment
+
+**Yes, it is genuinely the 2026 style package.** It is linked directly by the official 2026 main-track CFP, hosted on the official `media.neurips.cc` domain, and internally identifies itself as the NeurIPS 2026 submission/camera-ready style.
+
+There is no current `Styles.zip` filename: `/Conferences/2026/PaperInformation/StyleFiles` returns 404. The authoritative 2026 download is the `Formatting_Instructions_For_NeurIPS_2026.zip` archive above.
+</subagent_result>
+
+<subagent_result task_id="0uUJxml10ZPpm38n">
+## Official source
+
+**Linked-from page:**  
+https://icml.cc/Conferences/2026/AuthorInstructions
+
+The page states:
+
+> “The required format of the papers is specified in the LaTeX style files…”
+
+Its “LaTeX style files” link resolves directly to the ZIP below. <citation refs="nYWH1WQPZ1FTqRbuBmnhH">“The required format of the papers is specified in the LaTeX style files and the example paper.”</citation>
+
+The official Call for Papers independently links the same package:
+
+https://icml.cc/Conferences/2026/CallForPapers
+
+> “Please review Author Instructions, an Example Paper, and use the correct Style Files.” <citation refs="kxal0J7dFPLj7JF3t97Ln">“Please review Author Instructions, an Example Paper, and use the correct Style Files.”</citation>
+
+## Exact download URL
+
+**Official style ZIP:**  
+https://media.icml.cc/Conferences/ICML2026/Styles/icml2026.zip
+
+Verified directly:
+
+- HTTP status: `200`
+- Content-Type: `application/zip`
+- ZIP size: `228,368` bytes
+- Valid ZIP signature: `PK`
+- Contains nine files, including:
+  - `icml2026.sty`, 27,344 bytes
+  - `icml2026.bst`
+  - `example_paper.tex`
+  - `example_paper.pdf`
+
+## Filename and year verification
+
+Inside `icml2026.sty`:
+
+```tex
+% File: icml2026.sty (LaTeX style file for ICML-2026, version of 2025-10-29)
+```
+
+```tex
+\ProvidesPackage{icml2026}[2025/10/29 v2.0 ICML Conference Style File]
+```
+
+Additional 2026-specific content:
+
+```tex
+Seoul, South Korea. PMLR 306, 2026.
+Copyright 2026 by the author(s).
+```
+
+```tex
+pdfsubject={Proceedings of the International Conference on Machine Learning 2026},
+```
+
+The bundled `example_paper.tex` also begins with:
+
+```tex
+%%%%%%%% ICML 2026 EXAMPLE LATEX SUBMISSION FILE %%%%%%%%%%%%%%%%%
+```
+
+and loads:
+
+```tex
+\usepackage{icml2026}
+```
+
+**Conclusion:** The official package is unquestionably for **ICML 2026**. Its internal revision/package date is **2025-10-29**, which is the template’s release/version date, not a conference-year mismatch. The obvious standalone URL ending in `/icml2026.sty` returns `404`; the officially linked public download is the ZIP above.
+</subagent_result>[0m
+[2mThinking: **Planning precise citation formatting**
+
+[0m
+NeurIPS 2026 style files **are published**.
+
+- **Official ZIP:** https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip
+- **Linked from official Call for Papers:** https://neurips.cc/Conferences/2026/CallForPapers
+
+The CFP lists the ZIP as the **“Paper template.”** <citation refs="NEFHERx0UIhCwQ5rBx8Lc">The official NeurIPS 2026 CFP links directly to the paper-template ZIP.</citation>
+
+I verified that the ZIP contains:
+
+- `neurips_2026.sty`
+- `neurips_2026.tex`
+- `checklist.tex`
+
+The style file identifies itself as `NeurIPS 2026 submission/camera-ready style file`. No ICML fallback is needed.[0m
