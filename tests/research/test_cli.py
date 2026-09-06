@@ -102,3 +102,22 @@ def test_run_start_and_registry_through_the_cli(tmp_path, capsys):
     assert out["registry"]["entries"] == 2 and out["runs"][0]["sealed"] is True and out["prereg"] is None
     code, out = run(capsys, root + ["prereg", "check", "toy"])
     assert code == 3
+
+
+def test_review_ideate_viva_commands_exist_and_validate_input(tmp_path, capsys):
+    root = ["--root", str(tmp_path), "--json"]
+    run(capsys, root + ["init", "toy"])
+    code, out = run(capsys, root + ["review", "log", "toy", "R01", "--finding", "F1", "--disposition", "accept", "--reason", "x"])
+    assert code == 3
+    code, out = run(capsys, root + ["review", "request", "toy", "--scope", "nope"])
+    assert code == 2 and "scope" in out["error"]
+    code, out = run(capsys, root + ["ideate", "toy", "--question", "q", "--lanes", "codex:1"])
+    assert code == 2 and "human" in out["error"]
+    code, out = run(capsys, root + ["viva", "sample", "toy", "--n", "2"])
+    assert code == 6
+    code, out = run(capsys, root + ["viva", "record", "toy", "V01"], stdin="{}")
+    assert code == 3
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    for sub in (["review", "request"], ["review", "log"], ["ideate"], ["viva", "sample"], ["viva", "record"], ["paper", "verify"], ["build"], ["run", "start"], ["run", "import"], ["prereg", "freeze"], ["registry"]):
+        p = subprocess.run([sys.executable, str(SCRIPT), *sub, "--help"], cwd=tmp_path, capture_output=True, text=True, env=env)
+        assert p.returncode == 0, sub

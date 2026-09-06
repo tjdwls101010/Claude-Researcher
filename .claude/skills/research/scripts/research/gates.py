@@ -1,8 +1,8 @@
 """The two hash-bound preconditions: a confirmatory run and the final build.
 
-Each returns the list of findings that block it; empty means open. The review
-half (packet hash, dispositions) lives in ``review.py`` and is consulted here so
-that ``runs.py`` and ``paper.py`` never reason about reviews themselves.
+Each returns what the gate resolved to, or raises ``GateError`` naming every
+missing piece. ``runs.py`` and ``paper.py`` call these and never reason about
+reviews themselves.
 """
 
 from __future__ import annotations
@@ -44,3 +44,29 @@ def final_build(lay: Layout, draft_hash: str) -> dict:
     if findings:
         raise GateError(f"final build blocked: {len(findings)} precondition(s) missing", findings=findings)
     return {"review": review_id, "viva": viva_id}
+
+
+def readiness(lay: Layout) -> dict:
+    """What ``status`` shows: is each gate open now, and if not, why."""
+    out = {}
+    pid = prereg_mod.latest(lay)
+    if pid:
+        try:
+            confirmatory(lay, pid)
+            out["confirmatory"] = {"open": True, "prereg": pid}
+        except GateError as exc:
+            out["confirmatory"] = {"open": False, "prereg": pid, "missing": [f["message"] for f in exc.findings]}
+    else:
+        out["confirmatory"] = {"open": False, "prereg": None, "missing": ["no preregistration (`prereg freeze`)"]}
+    if (lay.paper / "main.tex").is_file():
+        from . import paper as paper_mod
+
+        dh = paper_mod.draft_hash(lay)
+        try:
+            final_build(lay, dh)
+            out["final_build"] = {"open": True, "draft_sha256": dh}
+        except GateError as exc:
+            out["final_build"] = {"open": False, "draft_sha256": dh, "missing": [f["message"] for f in exc.findings]}
+    else:
+        out["final_build"] = {"open": False, "draft_sha256": None, "missing": ["no paper/main.tex (`paper init`)"]}
+    return out

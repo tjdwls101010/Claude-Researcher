@@ -172,6 +172,40 @@ def cmd_build(args):
     return paper.build(lay, final=args.final, offline=args.offline, result_files=_result_files(lay, args.result_files))
 
 
+def cmd_review_request(args):
+    from . import review
+
+    lay = _open(args)
+    return review.request(lay, scope=args.scope, lane=args.lane, prereg_id=args.prereg)
+
+
+def cmd_review_log(args):
+    from . import review
+
+    lay = _open(args)
+    path = review.log(lay, args.id, finding=args.finding, disposition=args.disposition, ref=args.ref, reason=args.reason)
+    return {"status": "logged", "id": args.id, "finding": args.finding, "disposition": args.disposition, "paths": [lay.rel(path)]}
+
+
+def cmd_ideate(args):
+    from . import ideate
+
+    lay = _open(args)
+    return ideate.ideate(lay, question=args.question, lanes=ideate.parse_lanes(args.lanes), slices=args.slice or [])
+
+
+def cmd_viva_sample(args):
+    from . import viva
+
+    return viva.sample(_open(args), n=args.n, seed=args.seed)
+
+
+def cmd_viva_record(args):
+    from . import viva
+
+    return viva.record(_open(args), args.id, _stdin_json())
+
+
 def cmd_doctor(args):
     from .doctor import doctor
 
@@ -276,6 +310,42 @@ def register(sub):
     sp.add_argument("--result-files", nargs="+", metavar="FILE", help="as in `paper verify`")
     sp.add_argument("--offline", action="store_true", help="tectonic --only-cached: build from the local package cache without the network (fails if a package was never fetched)")
     sp.set_defaults(func=cmd_build)
+
+    rv = sub.add_parser("review", help="adversarial review bound to a packet hash: request (two stages, codex or claude lane), log dispositions per finding", description="`request` assembles the packet itself (every claim incl. dropped, every decision incl. dissent, prereg, runs incl. excluded, registry, literature, and the draft for scope draft), copies it outside the repo, asks the critic for its criteria BEFORE showing the packet (stage 1), then for the review (stage 2), and records both with the hashes the gates compare. A failed or schema-violating lane records nothing.")
+    rvsub = rv.add_subparsers(dest="review_cmd", required=True, metavar="ACTION")
+    sp = rvsub.add_parser("request", help="run the two-stage review on one lane and write reviews/RNN-<lane>.md", description="Lane codex (default, gpt-6-astra via CODEX_MODEL) or claude (claude -p --agent critic, model pinned in the agent file). The other lane is tried once only when the first declines or returns no JSON. Cost: two headless calls.")
+    sp.add_argument("slug", help="project slug")
+    sp.add_argument("--scope", required=True, choices=meta.REVIEW_SCOPES, help="design: claims + preregistration + decisions before a confirmatory run; draft: the LaTeX sources before the final build")
+    sp.add_argument("--lane", default="codex", choices=meta.LANES, help="who reviews (default codex)")
+    sp.add_argument("--prereg", help="preregistration id the design review covers (default: latest)")
+    sp.set_defaults(func=cmd_review_request)
+    sp = rvsub.add_parser("log", help="record what was done about one finding: accept | reject (needs a registry/source ref) | test (closes with a run id) | human (needs 성진's Decision id)", description="No scores. The latest disposition per finding is the effective one. An unresolved major finding keeps the confirmatory-run and final-build gates closed.")
+    sp.add_argument("slug", help="project slug")
+    sp.add_argument("id", help="review id, e.g. R01")
+    sp.add_argument("--finding", required=True, help="finding id from the review, e.g. F1")
+    sp.add_argument("--disposition", required=True, choices=meta.DISPOSITIONS, help="accept: what changed; reject: why it does not hold, with --ref; test: a discriminating experiment, closed by --ref rNNN; human: 성진 decided, --ref D0NN")
+    sp.add_argument("--ref", help="registry entry (r001/cond/metric) or source (/papers/sources/<id>.md#loc) for reject; run id for test; decision id for human")
+    sp.add_argument("--reason", required=True, help="one or two sentences (Korean) that a reader of the review can check")
+    sp.set_defaults(func=cmd_review_log)
+
+    sp = sub.add_parser("ideate", help="structured divergence: lanes with different evidence slices propose hypotheses independently, then critique each other once; disagreements are preserved", description="Runs only after 성진 has recorded their own hypothesis (claim add --by human:seongjin). Each lane gets a slice (papers:<tag> from papers/sources frontmatter tags, or role:replicator|metric-skeptic|reviewer); round 1 is independent, round 2 quotes the other lanes verbatim for one cross-critique. Output ideation/INN.md. The ending is a discriminating test or 성진's `decide`, never consensus.")
+    sp.add_argument("slug", help="project slug")
+    sp.add_argument("--question", required=True, help="the question the lanes diverge on")
+    sp.add_argument("--lanes", default="codex:2,claude:2", help="lane counts, e.g. codex:2,claude:2 (default)")
+    sp.add_argument("--slice", action="append", metavar="SPEC", help="evidence slice per lane, repeatable and assigned in order (cycled): papers:<tag> or role:<name>; default: the three roles")
+    sp.set_defaults(func=cmd_ideate)
+
+    vv = sub.add_parser("viva", help="oral examination before submission: sample claims for 성진 to explain, record answers first and assessment after; bound to the draft hash", description="`sample` picks supported claims plus one counterfactual with a seedable RNG; `record` refuses any assessment until every answer is present. `build --final` needs a passed record bound to the current draft, claims and registry.")
+    vvsub = vv.add_subparsers(dest="viva_cmd", required=True, metavar="ACTION")
+    sp = vvsub.add_parser("sample", help="write viva/VNN.md with N sampled supported claims + 1 counterfactual question", description="Ask 성진 the questions in the session; collect every answer before assessing any.")
+    sp.add_argument("slug", help="project slug")
+    sp.add_argument("--n", type=int, default=5, help="claims to sample (default 5, or all supported claims if fewer)")
+    sp.add_argument("--seed", type=int, help="RNG seed (recorded; default random)")
+    sp.set_defaults(func=cmd_viva_sample)
+    sp = vvsub.add_parser("record", help="stdin JSON {answers: [{id, answer}], assessment: [{id, verdict: pass|weak|fail, note}]}; result pass unless any fail", description="Every question needs 성진's answer before any verdict is accepted; a recorded viva cannot be edited, sample a new one.")
+    sp.add_argument("slug", help="project slug")
+    sp.add_argument("id", help="viva id, e.g. V01")
+    sp.set_defaults(func=cmd_viva_record)
 
     sp = sub.add_parser("doctor", help="check tectonic, codex, claude and python deps; print install commands (exit 7 if a required one is missing)", description="Verify every external prerequisite of build, review and ideate.")
     sp.set_defaults(func=cmd_doctor)

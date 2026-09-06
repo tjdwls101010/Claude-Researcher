@@ -6,3 +6,6 @@ AUTHORS = DECIDERS
 CLAIM_STATUSES = ("candidate", "supported", "refuted", "dropped")
 STATISTICS = ("mean", "std", "n", "min", "max")
 PHASES = ("exploring", "designing", "running", "analyzing", "writing", "reviewing", "submitted")
+REVIEW_SCOPES = ("design", "draft")
+LANES = ("codex", "claude")
+DISPOSITIONS = ("accept", "reject", "test", "human")

@@ -68,3 +68,12 @@ def _runs_section(lay: Layout) -> dict:
         except ValueError:
             reg = {"error": "unreadable"}
     return {"runs": rows, "registry": reg}
+
+
+@register
+def _review_section(lay: Layout) -> dict:
+    from . import gates, review
+
+    out = review.summary(lay)
+    out["gates"] = gates.readiness(lay)
+    return out

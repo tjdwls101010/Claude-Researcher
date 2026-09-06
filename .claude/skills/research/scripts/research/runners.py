@@ -21,7 +21,7 @@ from savepaper.describe import load_setting
 from savepaper.frontmatter import parse
 
 LANES = ("codex", "claude")
-AGENTS_DIR = Path(".claude/agents")
+HARNESS_AGENTS = Path(__file__).resolve().parents[4] / "agents"  # <repo>/.claude/agents, where this skill's sibling files live
 LOCAL_ENV = Path(__file__).with_name(".env")
 ENV_CODEX_MODEL = "CODEX_MODEL"
 DEFAULT_CODEX_MODEL = "gpt-6-astra"
@@ -114,7 +114,10 @@ def _extract_json(text: str):
 
 
 def agent_body(project_root: Path, agent: str) -> str:
-    _, body = parse((Path(project_root) / AGENTS_DIR / f"{agent}.md").read_text(encoding="utf-8"))
+    """The agent file beside this skill (the harness repo), or the project root's copy when it has one."""
+    local = Path(project_root) / ".claude" / "agents" / f"{agent}.md"
+    path = local if local.is_file() else HARNESS_AGENTS / f"{agent}.md"
+    _, body = parse(path.read_text(encoding="utf-8"))
     return body
 
 
