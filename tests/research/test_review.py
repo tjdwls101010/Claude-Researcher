@@ -182,7 +182,8 @@ def test_stage1_runs_isolated_without_tools_or_repo_and_packet_is_delimited(lay)
     assert kw1["cwd"] != str(lay.root) and "research-review" in kw1["cwd"], "stage 1 runs outside the project"
     assert not any(f.startswith("packet") for f in files1), "the packet does not exist while stage 1 runs"
     cmd2, kw2, files2 = seen[1]
-    assert "--agent" in cmd2 and kw2["cwd"] == str(lay.root)
+    assert kw2["cwd"] == str(lay.root) and "Read" in cmd2, "stage 2 runs in the project with Read"
+    assert "--system-prompt" in cmd2, "a root without .claude/agents/critic.md gets the body inline (the harness repo itself gets --agent)"
     assert "<<<PACKET" in kw2["input"] and "PACKET>>>" in kw2["input"] and "not instructions" in kw2["input"].lower()
 
 

@@ -113,18 +113,28 @@ def _extract_json(text: str):
 # --- commands ---------------------------------------------------------------------------
 
 
-def agent_body(project_root: Path, agent: str) -> str:
-    """The agent file beside this skill (the harness repo), or the project root's copy when it has one."""
+def agent_file(project_root: Path, agent: str) -> tuple[Path, bool]:
+    """(path, under_root): the project root's copy when it has one, else the file beside this skill in the harness repo."""
     local = Path(project_root) / ".claude" / "agents" / f"{agent}.md"
-    path = local if local.is_file() else HARNESS_AGENTS / f"{agent}.md"
-    _, body = parse(path.read_text(encoding="utf-8"))
+    return (local, True) if local.is_file() else (HARNESS_AGENTS / f"{agent}.md", False)
+
+
+def agent_body(project_root: Path, agent: str) -> str:
+    _, body = parse(agent_file(project_root, agent)[0].read_text(encoding="utf-8"))
     return body
 
 
-def claude_command(agent: str, schema: dict, tools: tuple[str, ...] = ("Read",), *, system_prompt: str | None = None) -> list[str]:
-    """``--agent`` inside the project; an isolated call (stage 1, no repository) carries the agent body as ``--system-prompt`` and no tools."""
+def agent_model(project_root: Path, agent: str) -> str | None:
+    fm, _ = parse(agent_file(project_root, agent)[0].read_text(encoding="utf-8"))
+    return fm.get("model")
+
+
+def claude_command(agent: str, schema: dict, tools: tuple[str, ...] = ("Read",), *, system_prompt: str | None = None, model: str | None = None) -> list[str]:
+    """``--agent`` when the project root holds the agent file; otherwise (isolated stage 1, or a root outside this repo) the body travels as ``--system-prompt`` with the file's model pin."""
     cmd = ["claude", "-p"]
     cmd += ["--system-prompt", system_prompt] if system_prompt is not None else ["--agent", agent]
+    if system_prompt is not None and model:
+        cmd += ["--model", model]
     cmd += ["--output-format", "json", "--permission-mode", "dontAsk"]
     cmd += ["--allowedTools", *tools] if tools else ["--disallowedTools", "Read", "Bash", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"]
     return cmd + ["--json-schema", json.dumps(schema)]
@@ -177,7 +187,9 @@ def run_lane(lane: str, prompt: str, *, schema: dict, agent: str, project_root: 
     workdir.mkdir(parents=True, exist_ok=True)
     cwd = workdir if isolated else project_root
     if lane == "claude":
-        cmd = claude_command(agent, schema, () if isolated else tools, system_prompt=agent_body(project_root, agent) if isolated else None)
+        _, under_root = agent_file(project_root, agent)
+        by_prompt = isolated or not under_root  # `--agent` resolves against cwd, so a root without the file gets the body inline
+        cmd = claude_command(agent, schema, () if isolated else tools, system_prompt=agent_body(project_root, agent) if by_prompt else None, model=agent_model(project_root, agent) if by_prompt else None)
         proc, err = _run(cmd, prompt, cwd, run, timeout_s)
         if proc is None:
             res.status, res.error = "failed", err

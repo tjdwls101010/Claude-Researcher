@@ -127,3 +127,17 @@ def test_timeout(tmp_path):
 
     res = runners.run_lane("claude", "p", schema=SCHEMA, agent="critic", project_root=PROJECT, workdir=tmp_path, run=run, timeout_s=1)
     assert res.status == "failed" and res.error == "timeout"
+
+
+def test_claude_lane_without_the_agent_file_under_root_uses_system_prompt_and_pinned_model(tmp_path):
+    calls = []
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        return claude_reply({"answer": "pong"})(cmd, **kw)
+
+    res = runners.run_lane("claude", "p", schema=SCHEMA, agent="critic", project_root=tmp_path, workdir=tmp_path / "w", run=run)
+    assert res.status == "ok"
+    cmd = calls[0]
+    assert "--agent" not in cmd and "--system-prompt" in cmd and "--model" in cmd and cmd[cmd.index("--model") + 1] == "opus"
+    assert "reject" in cmd[cmd.index("--system-prompt") + 1].lower() and "Read" in cmd
