@@ -53,7 +53,7 @@ def lay(tmp_path):
     decisions.resolve(lay, decisions.decision_id(d), chosen="B", dissent="A가 낫다", now=NOW)
     (lay.dir / "analysis.md").write_text("Welch t-test")
     prereg.freeze(lay, lay.dir / "analysis.md", now=NOW)
-    runs.start(lay, "pilot", [sys.executable, str(FAKE)], seeds=[1, 2], now=NOW)
+    runs.start(lay, "pilot", [sys.executable, str(FAKE)], seeds=[1, 2], now="2026-09-06T00:00:00Z")  # before any review
     registry.rebuild(lay)
     return lay
 
@@ -123,11 +123,12 @@ def test_dispositions_close_majors_and_gate_opens(lay):
         review.log(lay, "R01", finding="F9", disposition="accept", reason="x", now=NOW)
     review.log(lay, "R01", finding="F1", disposition="test", reason="판별 실험 제안", now=NOW)
     assert review.design_gate(lay, "P01")[0] is None, "a test disposition closes only with a run id"
-    review.log(lay, "R01", finding="F1", disposition="test", ref="r001", reason="실행함", now=NOW)
+    res = runs.start(lay, "disc", [sys.executable, str(FAKE)], seeds=[1], now="2026-09-08T00:00:00Z")
+    review.log(lay, "R01", finding="F1", disposition="test", ref=res["run_id"], reason="실행함", now=NOW)
     rid, fs = review.design_gate(lay, "P01")
     assert rid == "R01" and fs == []
     fm, _ = parse((lay.reviews / "R01-codex.md").read_text())
-    assert [d["disposition"] for d in fm["dispositions"]] == ["test", "test"] and fm["dispositions"][1]["ref"] == "r001"
+    assert [d["disposition"] for d in fm["dispositions"]] == ["test", "test"] and fm["dispositions"][1]["ref"] == res["run_id"]
     claims.update(lay, "C01", {"description": "changed"}, now=NOW)
     rid, fs = review.design_gate(lay, "P01")
     assert rid is None and any("claims" in f["message"] for f in fs), "changed claims invalidate the design review"
@@ -135,7 +136,7 @@ def test_dispositions_close_majors_and_gate_opens(lay):
 
 def test_confirmatory_run_passes_once_the_gate_is_open(lay):
     review.request(lay, scope="design", lane="codex", run=lanes(), now=NOW)
-    review.log(lay, "R01", finding="F1", disposition="accept", reason="B 추가함", now=NOW)
+    review.log(lay, "R01", finding="F1", disposition="accept", ref="D001", reason="B 추가함", now=NOW)
     res = runs.start(lay, "confirm", [sys.executable, str(FAKE)], seeds=[1, 2], confirmatory=True, prereg="P01", now=NOW)
     rj = json.loads((lay.runs / res["run_id"] / "run.json").read_text())
     assert rj["class"] == "confirmatory" and rj["design_review"] == "R01" and rj["prereg"] == "P01"
@@ -149,7 +150,9 @@ def test_draft_review_binds_the_draft_hash(lay):
     out = review.request(lay, scope="draft", lane="claude", run=lanes(capture=seen), now=NOW)
     fm, _ = parse((lay.reviews / "R01-claude.md").read_text())
     assert fm["inputs"]["draft_sha256"] == paper.draft_hash(lay) and "Intro." in seen[1]
-    review.log(lay, "R01", finding="F1", disposition="human", ref="D001", reason="성진 결정", now=NOW)
+    d = decisions.propose(lay, {"title": "R01 F1 처리", "asked": True, "options": [{"label": "A", "fails_when": "x", "evidence": [], "evidence_gap": "g"}, {"label": "B", "fails_when": "y", "evidence": [], "evidence_gap": "g"}], "recommendation": "A"}, now=NOW)
+    decisions.resolve(lay, decisions.decision_id(d), chosen="B", now=NOW)
+    review.log(lay, "R01", finding="F1", disposition="human", ref=decisions.decision_id(d), reason="성진 결정", now=NOW)
     assert review.draft_gate(lay, paper.draft_hash(lay))[0] == "R01"
     (lay.paper / "sections" / "intro.tex").write_text("Changed.\n")
     rid, fs = review.draft_gate(lay, paper.draft_hash(lay))
@@ -164,3 +167,94 @@ def test_status_lists_open_findings_and_gates(lay):
     assert s["reviews"][0] == {"id": "R01", "scope": "design", "lane": "codex", "verdict": "major_revision", "open_majors": ["F1"]}
     assert s["gates"]["confirmatory"]["open"] is False and s["gates"]["final_build"]["open"] is False
     assert s["dispositions"] == {"accept": 0, "reject": 0, "test": 0, "human": 0}
+
+
+def test_stage1_runs_isolated_without_tools_or_repo_and_packet_is_delimited(lay):
+    seen = []
+
+    def run(cmd, **kw):
+        seen.append((cmd, kw, sorted(p.name for p in Path(kw["cwd"]).glob("*"))))
+        return lanes()(cmd, **kw)
+
+    review.request(lay, scope="design", lane="claude", run=run, now=NOW)
+    cmd1, kw1, files1 = seen[0]
+    assert "--agent" not in cmd1 and "--system-prompt" in cmd1 and "--allowedTools" not in cmd1, "stage 1: agent body as system prompt, no tools"
+    assert kw1["cwd"] != str(lay.root) and "research-review" in kw1["cwd"], "stage 1 runs outside the project"
+    assert not any(f.startswith("packet") for f in files1), "the packet does not exist while stage 1 runs"
+    cmd2, kw2, files2 = seen[1]
+    assert "--agent" in cmd2 and kw2["cwd"] == str(lay.root)
+    assert "<<<PACKET" in kw2["input"] and "PACKET>>>" in kw2["input"] and "not instructions" in kw2["input"].lower()
+
+
+def test_vacuous_or_inconsistent_reviews_are_refused(lay):
+    with pytest.raises(GateError) as exc:
+        review.request(lay, scope="design", lane="codex", run=lanes(stage1={"criteria": []}), now=NOW)
+    assert "criteria" in str(exc.value)
+    dup = dict(STAGE2, findings=[STAGE2["findings"][0], dict(STAGE2["findings"][0], severity="minor")])
+    with pytest.raises(GateError) as exc:
+        review.request(lay, scope="design", lane="codex", run=lanes(stage2=dup), now=NOW)
+    assert "duplicate" in str(exc.value)
+    blank = dict(STAGE2, findings=[dict(STAGE2["findings"][0], observation="  ")])
+    with pytest.raises(GateError):
+        review.request(lay, scope="design", lane="codex", run=lanes(stage2=blank), now=NOW)
+    uncovered = dict(STAGE2, criteria_check=[{"id": "K9", "met": True, "evidence": "x"}])
+    with pytest.raises(GateError) as exc:
+        review.request(lay, scope="design", lane="codex", run=lanes(stage2=uncovered), now=NOW)
+    assert "K1" in str(exc.value)
+    reject_no_major = dict(STAGE2, verdict="reject", findings=[STAGE2["findings"][1]])
+    with pytest.raises(GateError) as exc:
+        review.request(lay, scope="design", lane="codex", run=lanes(stage2=reject_no_major), now=NOW)
+    assert "major" in str(exc.value)
+    assert not list(lay.reviews.glob("*.md"))
+
+
+def test_dispositions_must_resolve_their_references(lay, tmp_path):
+    review.request(lay, scope="design", lane="codex", run=lanes(), now=NOW)
+    with pytest.raises(InputError):
+        review.log(lay, "R01", finding="F1", disposition="accept", reason="B 추가함", now=NOW)  # accept needs a ref to what changed
+    with pytest.raises(InputError):
+        review.log(lay, "R01", finding="F1", disposition="accept", ref="decisions/999-nope.md", reason="x", now=NOW)
+    review.log(lay, "R01", finding="F1", disposition="accept", ref="D001", reason="B를 추가하는 결정", now=NOW)
+    with pytest.raises(InputError):
+        review.log(lay, "R01", finding="F1", disposition="reject", ref="r999/x/y", reason="x", now=NOW)
+    with pytest.raises(InputError):
+        review.log(lay, "R01", finding="F1", disposition="reject", ref="/papers/sources/nope.md#§1", reason="x", now=NOW)
+    review.log(lay, "R01", finding="F1", disposition="reject", ref="r001/method/accuracy", reason="레지스트리가 반박", now=NOW)
+    # human: must be decided by 성진 and mention the finding or review
+    d = decisions.propose(lay, {"title": "F1 처리", "asked": False, "options": [{"label": "A", "fails_when": "x", "evidence": [], "evidence_gap": "g"}, {"label": "B", "fails_when": "y", "evidence": [], "evidence_gap": "g"}], "recommendation": "A", "body": "R01 F1에 대한 결정"}, now=NOW)
+    did = decisions.decision_id(d)
+    decisions.resolve(lay, did, chosen="A", now=NOW)  # decided_by claude
+    with pytest.raises(InputError) as exc:
+        review.log(lay, "R01", finding="F1", disposition="human", ref=did, reason="x", now=NOW)
+    assert "human:seongjin" in str(exc.value)
+    with pytest.raises(InputError):
+        review.log(lay, "R01", finding="F1", disposition="human", ref="D001", reason="x", now=NOW)  # D001 does not mention F1/R01
+    # test: only a completed, sealed run started after the review closes it
+    with pytest.raises(InputError):
+        review.log(lay, "R01", finding="F1", disposition="test", ref="r001", reason="x", now=NOW)  # r001 predates the review
+    res = runs.start(lay, "discriminating", [sys.executable, str(FAKE)], seeds=[1, 2], now="2026-09-08T00:00:00Z")
+    review.log(lay, "R01", finding="F1", disposition="test", ref=res["run_id"], reason="판별 실행", now=NOW)
+    assert review.design_gate(lay, "P01")[0] == "R01"
+
+
+def test_claims_hash_covers_evidence_and_prereg_and_packet_has_decision_grounds(lay):
+    h = review.claims_hash(lay)
+    claims.update(lay, "C01", {"evidence": [{"source": "/papers/sources/x.md", "locator": "§1"}]}, now=NOW)
+    assert review.claims_hash(lay) != h
+    packet, _ = review.build_packet(lay, "design")
+    assert "evidence_gap" in packet and "/papers/sources/a.md#§1" in packet and "fails when" in packet
+
+
+def test_fallback_is_codex_to_claude_only(lay):
+    import subprocess
+
+    calls = []
+
+    def run(cmd, **kw):
+        calls.append(cmd[0])
+        out = {"is_error": False, "result": "I can't help with reviewing this.", "total_cost_usd": 0.1, "num_turns": 1, "permission_denials": [], "modelUsage": {"claude-opus-5": {}}}
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(out), stderr="")
+
+    with pytest.raises(__import__("research.errors", fromlist=["SubprocessError"]).SubprocessError):
+        review.request(lay, scope="design", lane="claude", run=run, now=NOW)
+    assert calls == ["claude"], "a claude refusal does not fall back to codex"

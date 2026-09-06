@@ -70,13 +70,19 @@ def resolve_slice(lay: Layout, spec: str) -> dict:
 
 
 def _assign(lay: Layout, lanes: dict[str, int], slices: list[str]) -> list[dict]:
-    resolved = [resolve_slice(lay, s) for s in slices] or [resolve_slice(lay, f"role:{r}") for r in sorted(ROLES)]
+    """One distinct slice per lane: the difference in evidence is the whole point, so a repeat is refused rather than cycled silently."""
+    total = sum(lanes.values())
+    specs = list(slices) or [f"role:{r}" for r in sorted(ROLES)][:total]
+    if len(set(specs)) != len(specs):
+        raise InputError("--slice: the same slice twice gives two lanes the same evidence; make each one different")
+    if len(specs) < total:
+        raise InputError(f"--slice: {total} lanes need {total} distinct slices, got {len(specs)} (papers:<tag> or role:{'|'.join(sorted(ROLES))})")
+    resolved = [resolve_slice(lay, s) for s in specs]
     out = []
     i = 0
     for lane, n in lanes.items():
         for k in range(1, n + 1):
-            s = resolved[i % len(resolved)]
-            out.append({"lane": f"{lane}-{k}", "runner": lane, **{kk: v for kk, v in s.items()}})
+            out.append({"lane": f"{lane}-{k}", "runner": lane, **resolved[i]})
             i += 1
     return out
 
@@ -94,8 +100,11 @@ def _round1_prompt(question: str, human_claims: list[dict], lane: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _round2_prompt(question: str, lane: dict, others: list[tuple[str, dict]]) -> str:
-    lines = [f"ROUND 2 — cross-critique. You are lane {lane['lane']}.", "", f"Research question: {question}", "", "The other lanes proposed (verbatim):"]
+def _round2_prompt(question: str, lane: dict, own: dict, others: list[tuple[str, dict]]) -> str:
+    lines = [f"ROUND 2 — cross-critique. You are lane {lane['lane']}.", "", f"Research question: {question}", "", f"Your assignment was {lane['slice']}" + (f" (sources: {', '.join(lane['sources'])})" if lane["sources"] else f": {lane['role']}"), "", "Your own round-1 hypotheses (verbatim):"]
+    for h in own.get("hypotheses", []):
+        lines.append(f"- {h['title']} — prediction: {h['prediction']}; test: {h['discriminating_test']}")
+    lines += ["", "The other lanes proposed (verbatim):"]
     for name, out in others:
         for h in out.get("hypotheses", []):
             lines.append(f"- [{name}] {h['title']} — prediction: {h['prediction']}; test: {h['discriminating_test']}; evidence: {', '.join(h.get('evidence') or []) or 'none'}")
@@ -120,7 +129,7 @@ def ideate(lay: Layout, *, question: str, lanes: dict[str, int], slices: list[st
             lane["model"] = res.model
         for lane in assigned:
             others = [(n, o) for n, o in round1.items() if n != lane["lane"]]
-            res = runners.run_lane(lane["runner"], _round2_prompt(question, lane, others), schema=SCHEMA["ideate_round2"], agent="critic", project_root=lay.root, workdir=tmp / lane["lane"], run=run, timeout_s=timeout_s)
+            res = runners.run_lane(lane["runner"], _round2_prompt(question, lane, round1[lane["lane"]], others), schema=SCHEMA["ideate_round2"], agent="critic", project_root=lay.root, workdir=tmp / lane["lane"], run=run, timeout_s=timeout_s)
             if not res.ok:
                 raise SubprocessError(f"round 2, lane {lane['lane']}: {res.error}; nothing recorded")
             round2[lane["lane"]] = res.json

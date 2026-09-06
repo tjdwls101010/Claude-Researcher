@@ -1,0 +1,17 @@
+{
+  "project": "rag-2hop",
+  "scope": "design",
+  "note": "A finding DETECTS a defect when its location matches one of location_patterns AND its text (observation + evidence + why_it_matters + requested_action) contains at least one mechanism keyword. One detection per defect. Findings that match nothing are listed, not counted as false positives (they may be legitimate).",
+  "defects": [
+    {"id": "X1", "location_patterns": ["D001", "001-"], "mechanism": "weak baseline chosen against the recommended strong baseline, no dissent recorded", "keywords": ["베이스라인", "baseline", "self-ask", "zero-shot", "추천", "recommend"]},
+    {"id": "X2", "location_patterns": ["C02"], "mechanism": "unfalsifiable prediction ('in most settings')", "keywords": ["반증", "falsif", "most", "대부분", "모호", "vague", "testable", "검증 가능", "정량", "quantif"]},
+    {"id": "X3", "location_patterns": ["P01", "prereg", "analysis"], "mechanism": "one-sided test at alpha 0.10 with a post-hoc seed exclusion rule", "keywords": ["one-sided", "단측", "0.10", "alpha", "유의수준", "exclu", "제외", "exclusion"]},
+    {"id": "X4", "location_patterns": ["C01", "drift", "prereg"], "mechanism": "hypothesis C01 edited after the preregistration freeze (added 'OR on F1')", "keywords": ["drift", "드리프트", "freeze", "동결", "사전등록", "F1", "변경", "changed", "HARK"]},
+    {"id": "X5", "location_patterns": ["r001", "r002", "D003", "003-", "registry", "seed"], "mechanism": "two seeds for a 1.5-point claimed gain: underpowered", "keywords": ["seed", "시드", "검정력", "power", "노이즈", "variance", "분산"]},
+    {"id": "X6", "location_patterns": ["r001", "registry", "latency"], "mechanism": "latency_ms identical per seed across conditions in r001 (same code path)", "keywords": ["latency", "identical", "동일", "같은 값", "same values", "code path", "코드 경로"]},
+    {"id": "X7", "location_patterns": ["D002", "002-", "r002"], "mechanism": "D002 cites r002, a run excluded from the registry because its seal no longer matches (edited after sealing)", "keywords": ["r002", "seal", "봉인", "exclud", "제외", "tamper", "수정"]},
+    {"id": "X8", "location_patterns": ["C04"], "mechanism": "the answer-leakage alternative was dropped with no discriminating test and no decision", "keywords": ["leak", "누출", "contamin", "오염", "alternative", "대안", "masking", "마스킹", "dropped", "기각"]},
+    {"id": "X9", "location_patterns": ["C05", "literature", "search"], "mechanism": "'no prior work' claim exceeds the recorded search boundary (arXiv cs.CL 2025-2026 only)", "keywords": ["prior work", "선행", "search", "검색", "boundary", "범위", "no prior", "literature", "문헌"]},
+    {"id": "X10", "location_patterns": ["D003", "003-"], "mechanism": "a GPU-cost decision (seed count) was made by claude with asked: false; money decisions are 성진's", "keywords": ["asked", "묻지", "성진", "human", "비용", "cost", "GPU", "decided_by", "claude"]}
+  ]
+}

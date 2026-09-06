@@ -81,3 +81,18 @@ def test_slice_parsing(tmp_path):
         ideate.resolve_slice(lay, "papers:nothing-has-this-tag")
     with pytest.raises(InputError):
         ideate.resolve_slice(lay, "bogus")
+
+
+def test_round2_carries_own_position_and_duplicate_slices_are_refused(tmp_path):
+    make_papers(tmp_path)
+    lay = project.init_project(tmp_path, "toy", question="q", now=NOW)
+    claims.add(lay, {"title": "Mine", "description": "d"}, kind="hypothesis", by="human:seongjin", now=NOW)
+    seen = []
+    ideate.ideate(lay, question="q", lanes={"codex": 2}, slices=["papers:scaling", "role:reviewer"], run=fake(R1, R2, seen), now=NOW)
+    r2 = [p for c, p in seen if "ROUND 2" in p]
+    assert all("Your own round-1" in p and "Data scale drives it" in p and "Your assignment" in p for p in r2)
+    with pytest.raises(InputError) as exc:
+        ideate.ideate(lay, question="q", lanes={"codex": 2, "claude": 2}, slices=[], run=fake(R1, R2, []), now=NOW)
+    assert "slice" in str(exc.value)
+    with pytest.raises(InputError):
+        ideate.ideate(lay, question="q", lanes={"codex": 2}, slices=["papers:scaling"], run=fake(R1, R2, []), now=NOW)

@@ -46,16 +46,17 @@ def test_record_needs_every_answer_before_any_assessment(lay):
     qs = parse((lay.viva / "V01.md").read_text())[0]["questions"]
     ids = [q["id"] for q in qs]
     with pytest.raises(InputError) as exc:
-        viva.record(lay, "V01", {"answers": [{"id": ids[0], "answer": "..."}], "assessment": []}, now=NOW)
+        viva.record(lay, "V01", {"answers": [{"id": ids[0], "answer": "..."}]}, now=NOW)
     assert ids[1] in str(exc.value)
+    viva.record(lay, "V01", {"answers": [{"id": i, "answer": "설명"} for i in ids]}, now=NOW)
     with pytest.raises(InputError):
-        viva.record(lay, "V01", {"answers": [{"id": i, "answer": "설명"} for i in ids], "assessment": [{"id": ids[0], "verdict": "pass", "note": ""}]}, now=NOW)
-    out = viva.record(lay, "V01", {"answers": [{"id": i, "answer": "설명"} for i in ids], "assessment": [{"id": i, "verdict": "pass" if i != ids[1] else "weak", "note": "n"} for i in ids]}, now=NOW)
+        viva.record(lay, "V01", {"assessment": [{"id": ids[0], "verdict": "pass", "note": ""}]}, now=NOW)
+    out = viva.record(lay, "V01", {"assessment": [{"id": i, "verdict": "pass" if i != ids[1] else "weak", "note": "n"} for i in ids]}, now=NOW)
     fm, body = parse((lay.viva / "V01.md").read_text())
     assert fm["result"] == "pass" and fm["recorded_at"] == NOW and out["result"] == "pass"
     assert body.index("성진") < body.index("클로드") or body.index("답변") < body.index("평가")
     with pytest.raises(InputError):
-        viva.record(lay, "V01", {"answers": [], "assessment": []}, now=NOW)  # already recorded
+        viva.record(lay, "V01", {"assessment": []}, now=NOW)  # already recorded
 
 
 def test_gate_requires_a_passed_record_bound_to_the_current_hashes(lay):
@@ -63,12 +64,14 @@ def test_gate_requires_a_passed_record_bound_to_the_current_hashes(lay):
     vid, fs = viva.gate(lay, paper.draft_hash(lay))
     assert vid is None and "record" in fs[0]["message"]
     ids = [q["id"] for q in parse((lay.viva / "V01.md").read_text())[0]["questions"]]
-    viva.record(lay, "V01", {"answers": [{"id": i, "answer": "a"} for i in ids], "assessment": [{"id": i, "verdict": "fail", "note": "n"} for i in ids]}, now=NOW)
+    viva.record(lay, "V01", {"answers": [{"id": i, "answer": "a"} for i in ids]}, now=NOW)
+    viva.record(lay, "V01", {"assessment": [{"id": i, "verdict": "fail", "note": "n"} for i in ids]}, now=NOW)
     vid, fs = viva.gate(lay, paper.draft_hash(lay))
     assert vid is None and "fail" in fs[0]["message"]
     viva.sample(lay, n=2, seed=2, now=NOW)
     ids = [q["id"] for q in parse((lay.viva / "V02.md").read_text())[0]["questions"]]
-    viva.record(lay, "V02", {"answers": [{"id": i, "answer": "a"} for i in ids], "assessment": [{"id": i, "verdict": "pass", "note": "n"} for i in ids]}, now=NOW)
+    viva.record(lay, "V02", {"answers": [{"id": i, "answer": "a"} for i in ids]}, now=NOW)
+    viva.record(lay, "V02", {"assessment": [{"id": i, "verdict": "pass", "note": "n"} for i in ids]}, now=NOW)
     assert viva.gate(lay, paper.draft_hash(lay))[0] == "V02"
     (lay.paper / "sections" / "intro.tex").write_text("changed")
     assert viva.gate(lay, paper.draft_hash(lay))[0] is None
@@ -79,3 +82,22 @@ def test_sample_needs_supported_claims(tmp_path):
     paper.init(lay, TEMPLATE, main="main.tex", now=NOW)
     with pytest.raises(GateError):
         viva.sample(lay, n=2, seed=1, now=NOW)
+
+
+def test_answers_are_frozen_in_one_call_and_assessed_in_a_later_one(lay):
+    viva.sample(lay, n=2, seed=3, now=NOW)
+    ids = [q["id"] for q in parse((lay.viva / "V01.md").read_text())[0]["questions"]]
+    both = {"answers": [{"id": i, "answer": "a"} for i in ids], "assessment": [{"id": i, "verdict": "pass", "note": ""} for i in ids]}
+    with pytest.raises(InputError) as exc:
+        viva.record(lay, "V01", both, now=NOW)
+    assert "separate" in str(exc.value) or "first" in str(exc.value)
+    with pytest.raises(InputError):
+        viva.record(lay, "V01", {"assessment": both["assessment"]}, now=NOW)  # no answers stored yet
+    out = viva.record(lay, "V01", {"answers": both["answers"]}, now=NOW)
+    assert out["status"] == "answered"
+    fm, _ = parse((lay.viva / "V01.md").read_text())
+    assert fm["answered_at"] == NOW and fm["recorded_at"] is None
+    with pytest.raises(InputError):
+        viva.record(lay, "V01", {"answers": [{"id": ids[0], "answer": "changed"}]}, now=NOW)  # answers are frozen
+    out = viva.record(lay, "V01", {"assessment": both["assessment"]}, now="2026-09-08T00:00:00Z")
+    assert out["status"] == "recorded" and out["result"] == "pass"

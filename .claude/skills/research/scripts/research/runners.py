@@ -121,12 +121,17 @@ def agent_body(project_root: Path, agent: str) -> str:
     return body
 
 
-def claude_command(agent: str, schema: dict, tools: tuple[str, ...] = ("Read",)) -> list[str]:
-    return ["claude", "-p", "--agent", agent, "--output-format", "json", "--permission-mode", "dontAsk", "--allowedTools", *tools, "--json-schema", json.dumps(schema)]
+def claude_command(agent: str, schema: dict, tools: tuple[str, ...] = ("Read",), *, system_prompt: str | None = None) -> list[str]:
+    """``--agent`` inside the project; an isolated call (stage 1, no repository) carries the agent body as ``--system-prompt`` and no tools."""
+    cmd = ["claude", "-p"]
+    cmd += ["--system-prompt", system_prompt] if system_prompt is not None else ["--agent", agent]
+    cmd += ["--output-format", "json", "--permission-mode", "dontAsk"]
+    cmd += ["--allowedTools", *tools] if tools else ["--disallowedTools", "Read", "Bash", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"]
+    return cmd + ["--json-schema", json.dumps(schema)]
 
 
-def codex_command(project_root: Path, schema_path: Path, last_message: Path, model: str, effort: str | None) -> list[str]:
-    cmd = ["codex", "exec", "-C", str(project_root), "-s", "read-only", "-m", model, "--ephemeral", "--skip-git-repo-check", "--output-schema", str(schema_path), "-o", str(last_message)]
+def codex_command(cwd: Path, schema_path: Path, last_message: Path, model: str, effort: str | None) -> list[str]:
+    cmd = ["codex", "exec", "-C", str(cwd), "-s", "read-only", "-m", model, "--ephemeral", "--skip-git-repo-check", "--output-schema", str(schema_path), "-o", str(last_message)]
     if effort:
         cmd += ["-c", f'model_reasoning_effort="{effort}"']
     return cmd + ["-"]
@@ -158,16 +163,22 @@ def _finish(res: LaneResult, payload, text: str, schema: dict) -> LaneResult:
     return res
 
 
-def run_lane(lane: str, prompt: str, *, schema: dict, agent: str, project_root: Path, workdir: Path, run=subprocess.run, timeout_s: float = TIMEOUT_S, tools: tuple[str, ...] = ("Read",)) -> LaneResult:
-    """One headless call on one lane; ``workdir`` holds the lane's temp files (schema, last message) and is left clean."""
+def run_lane(lane: str, prompt: str, *, schema: dict, agent: str, project_root: Path, workdir: Path, run=subprocess.run, timeout_s: float = TIMEOUT_S, tools: tuple[str, ...] = ("Read",), isolated: bool = False) -> LaneResult:
+    """One headless call on one lane; ``workdir`` holds the lane's temp files (schema, last message) and is left clean.
+
+    ``isolated`` runs the call from ``workdir`` with no tools and the agent body as the system prompt, so the
+    model cannot reach the repository: that is what makes a stage-1 pre-commitment a pre-commitment.
+    """
     if lane not in LANES:
         raise ValueError(f"lane must be one of {LANES}")
     res = LaneResult(lane=lane)
     t0 = time.monotonic()
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
+    cwd = workdir if isolated else project_root
     if lane == "claude":
-        proc, err = _run(claude_command(agent, schema, tools), prompt, project_root, run, timeout_s)
+        cmd = claude_command(agent, schema, () if isolated else tools, system_prompt=agent_body(project_root, agent) if isolated else None)
+        proc, err = _run(cmd, prompt, cwd, run, timeout_s)
         if proc is None:
             res.status, res.error = "failed", err
         elif proc.returncode != 0:
@@ -185,8 +196,9 @@ def run_lane(lane: str, prompt: str, *, schema: dict, agent: str, project_root: 
                 res.model = next(iter((data.get("modelUsage") or {}).keys()), None)
                 res.cost_usd = round(float(data["total_cost_usd"]), 4) if data.get("total_cost_usd") is not None else None
                 res.turns = data.get("num_turns")
-                if data.get("is_error") or _AUTH.search(text[:500]):
-                    res.status, res.error = "failed", f"auth: {text[:300]}"
+                if data.get("is_error"):
+                    kind = "auth" if _AUTH.search(text[:500]) else "crash"
+                    res.status, res.error = "failed", f"{kind}: {text[:300]}"
                 else:
                     _finish(res, data.get("structured_output"), text, schema)
     else:
@@ -196,9 +208,9 @@ def run_lane(lane: str, prompt: str, *, schema: dict, agent: str, project_root: 
         schema_path = workdir / f"{agent}.schema.json"
         last = workdir / f"{agent}.last.txt"
         schema_path.write_text(json.dumps(schema), encoding="utf-8")
-        cmd = codex_command(project_root, schema_path, last, model, effort)
+        cmd = codex_command(cwd, schema_path, last, model, effort)
         full = agent_body(project_root, agent) + "\n\n---\n\n" + prompt
-        proc, err = _run(cmd, full, project_root, run, timeout_s)
+        proc, err = _run(cmd, full, cwd, run, timeout_s)
         text = last.read_text(encoding="utf-8") if last.exists() else ""
         res.text = text
         if proc is None:
@@ -215,10 +227,10 @@ def run_lane(lane: str, prompt: str, *, schema: dict, agent: str, project_root: 
 
 
 def run_with_fallback(lane: str, prompt: str, **kw) -> LaneResult:
-    """The other lane is tried once when the model itself declined or produced no JSON; environment failures are reported as they are."""
+    """codex falls back to claude once when the model itself declined or produced no JSON (성진, 2026-09-06); claude never falls back, and environment failures are reported as they are."""
     res = run_lane(lane, prompt, **kw)
-    if res.status == "refused" or (res.status == "failed" and (res.error or "").startswith("nojson")):
-        other = "claude" if lane == "codex" else "codex"
+    if lane == "codex" and (res.status == "refused" or (res.status == "failed" and (res.error or "").startswith("nojson"))):
+        other = "claude"
         second = run_lane(other, prompt, **kw)
         second.fallback_from = lane
         second.seconds = round((res.seconds or 0) + (second.seconds or 0), 1)

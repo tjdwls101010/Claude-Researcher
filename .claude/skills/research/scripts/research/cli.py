@@ -342,7 +342,7 @@ def register(sub):
     sp.add_argument("--n", type=int, default=5, help="claims to sample (default 5, or all supported claims if fewer)")
     sp.add_argument("--seed", type=int, help="RNG seed (recorded; default random)")
     sp.set_defaults(func=cmd_viva_sample)
-    sp = vvsub.add_parser("record", help="stdin JSON {answers: [{id, answer}], assessment: [{id, verdict: pass|weak|fail, note}]}; result pass unless any fail", description="Every question needs 성진's answer before any verdict is accepted; a recorded viva cannot be edited, sample a new one.")
+    sp = vvsub.add_parser("record", help="two calls: first stdin {answers: [{id, answer}]} freezes 성진's answers, then {assessment: [{id, verdict: pass|weak|fail, note}]} records the verdicts; result pass unless any fail", description="Answers and assessment are separate operations so the verdicts are formed after the answers exist. Frozen answers cannot change; a recorded viva cannot be edited, sample a new one.")
     sp.add_argument("slug", help="project slug")
     sp.add_argument("id", help="viva id, e.g. V01")
     sp.set_defaults(func=cmd_viva_record)

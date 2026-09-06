@@ -56,48 +56,65 @@ def sample(lay: Layout, *, n: int = 5, seed: int | None = None, now: str | None 
         "inputs": _hashes(lay),
         "questions": questions,
         "answers": [],
+        "answered_at": None,
         "assessment": [],
         "result": None,
         "recorded_at": None,
     }
-    body = "## 질문\n\n" + "\n".join(f"- **{q['id']}** ({q['kind']}, {q['claim']}) {q['question']}" for q in questions) + "\n\n## 성진의 답변\n\n_(아직 없음)_\n\n## 클로드의 평가\n\n_(답변 뒤에)_\n"
     path = lay.viva / f"{vid}.md"
-    path.write_text(dump(fm, body), encoding="utf-8")
+    path.write_text(dump(fm, _body(fm)), encoding="utf-8")
     write_readme(lay)
     return {"status": "sampled", "id": vid, "paths": [lay.rel(path)], "questions": questions, "next": "Ask 성진 each question and collect the answers first; assess only after every answer is in, then `viva record` with {answers, assessment}."}
 
 
 def record(lay: Layout, vid: str, data: dict, *, now: str | None = None) -> dict:
+    """Two operations, never one: ``{answers}`` freezes 성진's answers; a later ``{assessment}`` records Claude's verdicts against them."""
     path = _find(lay, vid)
     fm, _ = parse(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise InputError("stdin must be a JSON object: {answers: [{id, answer}]} first, then {assessment: [{id, verdict, note}]} in a separate call")
+    if "answers" in data and "assessment" in data:
+        raise InputError("answers and assessment arrive in separate calls: freeze the answers first, assess afterwards")
     if fm.get("recorded_at"):
         raise InputError(f"{vid} is already recorded; sample a new viva instead")
-    if not isinstance(data, dict):
-        raise InputError("stdin must be a JSON object {answers: [{id, answer}], assessment: [{id, verdict, note}]}")
     qids = [q["id"] for q in fm.get("questions") or []]
-    answers = {a.get("id"): str(a.get("answer") or "").strip() for a in (data.get("answers") or []) if isinstance(a, dict)}
-    missing = [q for q in qids if not answers.get(q)]
-    if missing:
-        raise InputError(f"answers: 성진's answer is missing for {', '.join(missing)}; every question is answered before anything is assessed")
-    assessment = {a.get("id"): a for a in (data.get("assessment") or []) if isinstance(a, dict)}
-    for q in qids:
-        a = assessment.get(q)
-        if not a or a.get("verdict") not in VERDICTS:
-            raise InputError(f"assessment: {q} needs a verdict in {VERDICTS}")
-    fm["answers"] = [{"id": q, "answer": answers[q]} for q in qids]
-    fm["assessment"] = [{"id": q, "verdict": assessment[q]["verdict"], "note": str(assessment[q].get("note") or "")} for q in qids]
-    fm["result"] = "fail" if any(a["verdict"] == "fail" for a in fm["assessment"]) else "pass"
-    fm["recorded_at"] = now or now_iso()
-    fm["inputs_at_record"] = _hashes(lay)
-    body = (
+    if "answers" in data:
+        if fm.get("answered_at"):
+            raise InputError(f"{vid} answers were frozen at {fm['answered_at']}; they cannot change")
+        answers = {a.get("id"): str(a.get("answer") or "").strip() for a in (data.get("answers") or []) if isinstance(a, dict)}
+        missing = [q for q in qids if not answers.get(q)]
+        if missing:
+            raise InputError(f"answers: 성진's answer is missing for {', '.join(missing)}; every question is answered before anything is assessed")
+        fm["answers"] = [{"id": q, "answer": answers[q]} for q in qids]
+        fm["answered_at"] = now or now_iso()
+        path.write_text(dump(fm, _body(fm)), encoding="utf-8")
+        write_readme(lay)
+        return {"status": "answered", "id": vid, "paths": [lay.rel(path)], "next": "assess each answer now and `viva record` again with {assessment: [...]}"}
+    if "assessment" in data:
+        if not fm.get("answered_at"):
+            raise InputError("assessment: no answers are frozen yet; record {answers: [...]} first")
+        assessment = {a.get("id"): a for a in (data.get("assessment") or []) if isinstance(a, dict)}
+        for q in qids:
+            a = assessment.get(q)
+            if not a or a.get("verdict") not in VERDICTS:
+                raise InputError(f"assessment: {q} needs a verdict in {VERDICTS}")
+        fm["assessment"] = [{"id": q, "verdict": assessment[q]["verdict"], "note": str(assessment[q].get("note") or "")} for q in qids]
+        fm["result"] = "fail" if any(a["verdict"] == "fail" for a in fm["assessment"]) else "pass"
+        fm["recorded_at"] = now or now_iso()
+        fm["inputs_at_record"] = _hashes(lay)
+        path.write_text(dump(fm, _body(fm)), encoding="utf-8")
+        write_readme(lay)
+        return {"status": "recorded", "id": vid, "result": fm["result"], "paths": [lay.rel(path)]}
+    raise InputError("stdin must carry either {answers: [...]} or {assessment: [...]}")
+
+
+def _body(fm: dict) -> str:
+    return (
         "## 질문\n\n" + "\n".join(f"- **{q['id']}** ({q['kind']}, {q['claim']}) {q['question']}" for q in fm["questions"])
-        + "\n\n## 성진의 답변\n\n" + "\n".join(f"- **{a['id']}** {a['answer']}" for a in fm["answers"])
-        + "\n\n## 클로드의 평가\n\n" + "\n".join(f"- **{a['id']}** {a['verdict']} — {a['note']}" for a in fm["assessment"])
-        + f"\n\n**결과: {fm['result']}**\n"
+        + "\n\n## 성진의 답변\n\n" + ("\n".join(f"- **{a['id']}** {a['answer']}" for a in fm.get("answers") or []) or "_(아직 없음)_")
+        + "\n\n## 클로드의 평가\n\n" + ("\n".join(f"- **{a['id']}** {a['verdict']} — {a['note']}" for a in fm.get("assessment") or []) or "_(답변 뒤에)_")
+        + (f"\n\n**결과: {fm['result']}**\n" if fm.get("result") else "\n")
     )
-    path.write_text(dump(fm, body), encoding="utf-8")
-    write_readme(lay)
-    return {"status": "recorded", "id": vid, "result": fm["result"], "paths": [lay.rel(path)]}
 
 
 def gate(lay: Layout, draft_hash: str) -> tuple[str | None, list[dict]]:
