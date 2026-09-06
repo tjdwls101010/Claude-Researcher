@@ -307,7 +307,7 @@ def start(
             from . import prereg as prereg_mod
 
             prereg_mod._find(lay, prereg)
-    cwd = Path(cwd) if cwd else lay.root
+    cwd = Path(cwd) if cwd else Path.cwd()  # the caller's directory, so a relative script path means what the caller sees
     if not cwd.is_dir():
         raise NotFoundError(f"cwd {cwd} does not exist")
     run_id = next_run_id(lay)

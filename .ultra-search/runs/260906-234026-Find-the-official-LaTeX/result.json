@@ -1,0 +1,254 @@
+{
+  "run_id": "260906-234026-Find-the-official-LaTeX",
+  "state": "completed",
+  "answer": "NeurIPS 2026 style files **are published**.\n\n- **Official ZIP:** https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip\n- **Linked from official Call for Papers:** https://neurips.cc/Conferences/2026/CallForPapers\n\nThe CFP lists the ZIP as the **“Paper template.”** The official NeurIPS 2026 CFP links directly to the paper-template ZIP. (https://neurips.cc/Conferences/2026/CallForPapers)\n\nI verified that the ZIP contains:\n\n- `neurips_2026.sty`\n- `neurips_2026.tex`\n- `checklist.tex`\n\nThe style file identifies itself as `NeurIPS 2026 submission/camera-ready style file`. No ICML fallback is needed.\n\n--- child 7yOMI9KqStQDRfqD ---\n## Result\n\n**Official source page:**  \nhttps://neurips.cc/Conferences/2026/CallForPapers\n\nThe 2026 main-conference CFP identifies itself as “The Fortieth Annual Conference on Neural Information Processing Systems (NeurIPS 2026)” and lists this under **Key links**:\n\n> “Paper template”\n\nlinked to the archive below. Official NeurIPS 2026 CFP and its Paper template link.\n\n**Exact official download URL:**  \nhttps://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip\n\nThe URL returns HTTP 200 as an `application/zip` file. Official NeurIPS media-domain ZIP download. (https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip)\n\n### Archive inspection\n\nThe ZIP contains:\n\n- `neurips_2026.tex`\n- `checklist.tex`\n- `neurips_2026.sty`\n\nExact evidence inside `neurips_2026.sty`:\n\n```tex\n% last revision: January 2026\n\\ProvidesPackage{neurips_2026}[2026-01-29 NeurIPS 2026 submission/camera-ready style file]\n...\n\\newcommand{\\@neuripsordinal}{40th}\n\\newcommand{\\@neuripsyear}{2026}\n```\n\nExact evidence inside `neurips_2026.tex`:\n\n```tex\n\\title{Formatting Instructions For NeurIPS 2026}\n```\n\n```tex\nThe only supported style file for NeurIPS 2026 is\n\\verb+neurips_2026.sty+, rewritten for \\LaTeXe{}.\n```\n\n## Assessment\n\n**Yes, it is genuinely the 2026 style package.** It is linked directly by the official 2026 main-track CFP, hosted on the official `media.neurips.cc` domain, and internally identifies itself as the NeurIPS 2026 submission/camera-ready style.\n\nThere is no current `Styles.zip` filename: `/Conferences/2026/PaperInformation/StyleFiles` returns 404. The authoritative 2026 download is the `Formatting_Instructions_For_NeurIPS_2026.zip` archive above.\n\n--- child 0uUJxml10ZPpm38n ---\n## Official source\n\n**Linked-from page:**  \nhttps://icml.cc/Conferences/2026/AuthorInstructions\n\nThe page states:\n\n> “The required format of the papers is specified in the LaTeX style files…”\n\nIts “LaTeX style files” link resolves directly to the ZIP below. “The required format of the papers is specified in the LaTeX style files and the example paper.”\n\nThe official Call for Papers independently links the same package:\n\nhttps://icml.cc/Conferences/2026/CallForPapers\n\n> “Please review Author Instructions, an Example Paper, and use the correct Style Files.” “Please review Author Instructions, an Example Paper, and use the correct Style Files.”\n\n## Exact download URL\n\n**Official style ZIP:**  \nhttps://media.icml.cc/Conferences/ICML2026/Styles/icml2026.zip\n\nVerified directly:\n\n- HTTP status: `200`\n- Content-Type: `application/zip`\n- ZIP size: `228,368` bytes\n- Valid ZIP signature: `PK`\n- Contains nine files, including:\n  - `icml2026.sty`, 27,344 bytes\n  - `icml2026.bst`\n  - `example_paper.tex`\n  - `example_paper.pdf`\n\n## Filename and year verification\n\nInside `icml2026.sty`:\n\n```tex\n% File: icml2026.sty (LaTeX style file for ICML-2026, version of 2025-10-29)\n```\n\n```tex\n\\ProvidesPackage{icml2026}[2025/10/29 v2.0 ICML Conference Style File]\n```\n\nAdditional 2026-specific content:\n\n```tex\nSeoul, South Korea. PMLR 306, 2026.\nCopyright 2026 by the author(s).\n```\n\n```tex\npdfsubject={Proceedings of the International Conference on Machine Learning 2026},\n```\n\nThe bundled `example_paper.tex` also begins with:\n\n```tex\n%%%%%%%% ICML 2026 EXAMPLE LATEX SUBMISSION FILE %%%%%%%%%%%%%%%%%\n```\n\nand loads:\n\n```tex\n\\usepackage{icml2026}\n```\n\n**Conclusion:** The official package is unquestionably for **ICML 2026**. Its internal revision/package date is **2025-10-29**, which is the template’s release/version date, not a conference-year mismatch. The obvious standalone URL ending in `/icml2026.sty` returns `404`; the officially linked public download is the ZIP above.",
+  "sources": [
+    {
+      "url": "https://neurips.cc/",
+      "title": "NeurIPS 2026",
+      "id": "tW2uqNKmld6IN5BH1-5IB",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://www.overleaf.com/latex/templates/formatting-instructions-for-neurips-2026/bjdwqfdkyftc",
+      "title": "Formatting Instructions For NeurIPS 2026",
+      "id": "5lwIImWEDsYJnwTx4XEap",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2015/PaperInformation/StyleFiles",
+      "title": "NIPS Style Files - NeurIPS 2026",
+      "id": "1bUYWjobFLt5WpVE9lUUv",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2023/PaperInformation/StyleFiles",
+      "title": "NeurIPS 2023 Style Files",
+      "id": "5eKfVuRS0Jy2z9AU7gqyY",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Downloads",
+      "title": "Downloads - NeurIPS",
+      "id": "bdVSQLDoV7IQgvFeWxV4_",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://www.typetex.app/templates/neurips/style-file",
+      "title": "neurips_2026.sty — Official NeurIPS 2026 Style File",
+      "id": "ByZIsqgVO3b6AbmM-4OvZ",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2026/MainTrackHandbook",
+      "title": "Main Track Handbook 2026",
+      "id": "Di8mnHE-MNT_Nrz-fSVnj",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2017/PaperInformation/StyleFiles",
+      "title": "Style Files",
+      "id": "DlBoakGPWbSPrxMtKzsSe",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://coauthor.thesify.ai/templates/neurips-2026-latex-template",
+      "title": "NeurIPS 2026 Paper Template - Free Official",
+      "id": "Ouz3oiUr4uMEJkT7cbsxT",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2013/PaperInformation/StyleFiles",
+      "title": "NIPS Style Files",
+      "id": "TCuGwbBa-Rv6wIVFWKJZF",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2026/CallForPapers",
+      "title": "Call for Papers 2026",
+      "id": "NEFHERx0UIhCwQ5rBx8Lc",
+      "opened": true,
+      "published": ""
+    },
+    {
+      "url": "https://www.underleaf.ai/templates/neurips",
+      "title": "NeurIPS 2026 LaTeX Template | Download & Formatting ...",
+      "id": "m1MDjVZLZzdwfbvClh9OF",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://nips.cc/Conferences/2019",
+      "title": "2026 Conference - nips.cc",
+      "id": "g5p2mor7IjLDdIiXyN0tq",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://nips.cc/virtual/2026/papers.html",
+      "title": "NeurIPS 2026 Papers - nips.cc",
+      "id": "PC-kf1bJuQJ2IBLz7H4qq",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://www.overleaf.com/latex/templates/formatting-instructions-for-neurips-2026/bjdwqfdkyftc.pdf",
+      "title": "Formatting Instructions For NeurIPS 2026 - Overleaf",
+      "id": "UDL0SxvA6R4T9fx6UKgeh",
+      "opened": false,
+      "published": "2026-06-23"
+    },
+    {
+      "url": "http://neurips.cc/Conferences/2026/CallForPapers",
+      "title": "Call for Papers 2026 - NeurIPS 2026",
+      "id": "kZstz8TX_xNogDyCuv0vz",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2015/PaperInformation/AuthorSubmissionInstructions",
+      "title": "Author and Submission Instructions - NeurIPS 2026",
+      "id": "pFb09_ENuhCd_OdgArO21",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/virtual/2026/papers.html",
+      "title": "NeurIPS 2026 Papers",
+      "id": "ha9ij_BsYz1hwrM6EUd8d",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2013/PaperInformation/AuthorSubmissionInstructions",
+      "title": "Author and Submission Instructions",
+      "id": "sw--OZLTgfpGQor3AEdM5",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2026/CallForWorkshops",
+      "title": "NeurIPS 2026 Call for Workshops",
+      "id": "780GcAP6_7Dj2SKjW8wO1",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2026/CallForPositionPapers",
+      "title": "NeurIPS 2026 Call for Position Papers",
+      "id": "SfIOgo50xtp_sFIa_XTa2",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://media.neurips.cc/Conferences/NeurIPS2026/Formatting_Instructions_For_NeurIPS_2026.zip",
+      "title": "Formatting_Instructions_For_NeurIPS_2026.zip",
+      "id": "NChjij4pT3yREVENl2lvU",
+      "opened": true,
+      "published": ""
+    },
+    {
+      "url": "https://neurips.cc/Conferences/2026/PaperInformation/StyleFiles",
+      "title": "2026 Conference",
+      "id": "4RQH-OHXbMDhpnSo4xIfs",
+      "opened": true,
+      "published": ""
+    },
+    {
+      "url": "https://icml.cc/Conferences/2026/AuthorInstructions",
+      "title": "ICML 2026 Author Instructions",
+      "id": "jlWGGA9Y8hQrKeP4gmuqy",
+      "opened": true,
+      "published": ""
+    },
+    {
+      "url": "https://icml.cc/Conferences/2026/CallForPapers",
+      "title": "ICML 2026 Call for Papers",
+      "id": "prDz_l1aaQeqJpe5vB3ah",
+      "opened": true,
+      "published": ""
+    },
+    {
+      "url": "https://icml.cc/",
+      "title": "ICML 2026",
+      "id": "yS17UnoFRFurNC50Q8D-C",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://media.icml.cc/Conferences/ICML2026/Styles/example_paper.pdf",
+      "title": "Submission and Formatting Instructions for  International Conference on Machine Learning (ICML 2026)",
+      "id": "3CtFGm3FIyb1S3vfnjLiC",
+      "opened": false,
+      "published": "2025-11-07"
+    },
+    {
+      "url": "https://icml.cc/Conferences/2022/StyleAuthorInstructions",
+      "title": "Style Author Instructions - ICML 2026",
+      "id": "PiwvNX8krOyB9gcl1wCap",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://icml.cc/Conferences/2026/ReviewerInstructions",
+      "title": "ICML 2026 Reviewer Instructions",
+      "id": "8n4soxRzkng1xq4QB5KIp",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://icml.cc/Conferences/2023/StyleAuthorInstructions",
+      "title": "Style Author Instructions - ICML 2026",
+      "id": "wdDvoyxeNNyJ7aMI97KTa",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://icml.cc/Conferences/2026/PosterInstructions",
+      "title": "ICML 2026 Poster Instructions",
+      "id": "j4hLuxxaNuTKCbn_zonU_",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://icml.cc/Conferences/2026",
+      "title": "2026 Conference - icml.cc",
+      "id": "fNHRPyBZyBqfgzHU9bx7_",
+      "opened": false,
+      "published": ""
+    },
+    {
+      "url": "https://icml.cc/Conferences/2026/Dates",
+      "title": "2026 Dates and Deadlines",
+      "id": "nehiNUbR-iihWD1eT8Owh",
+      "opened": false,
+      "published": ""
+    }
+  ],
+  "usage": {
+    "input": 63305,
+    "output": 6830,
+    "cache_read": 395008,
+    "cache_write": 0,
+    "reasoning": 2402,
+    "total_tokens": 465143,
+    "cost": 0.718929
+  },
+  "children": [
+    "7yOMI9KqStQDRfqD",
+    "0uUJxml10ZPpm38n"
+  ],
+  "orphan_children": [],
+  "empty": false,
+  "exit_code": 0
+}

@@ -29,7 +29,7 @@ def test_init_copies_template_records_provenance_and_scaffolds(lay):
     assert prov["source"] == "https://example.org/toyconf-2026.zip" and set(prov["files"]) == {"main.tex", "toyconf.sty"} and prov["copied_at"] == NOW
     assert (lay.paper / "main.tex").read_text() == (TEMPLATE / "main.tex").read_text()
     assert (lay.paper / "refs.bib").exists() and (lay.paper / "sections").is_dir() and (lay.paper / "results.tex").exists()
-    assert "paper/results.tex" in out["paths"]
+    assert "projects/toy/paper/results.tex" in out["paths"]
     (lay.paper / "main.tex").write_text("edited")
     paper.init(lay, TEMPLATE, main="main.tex", now=NOW)
     assert (lay.paper / "main.tex").read_text() == "edited", "a second init keeps the author's main.tex"
@@ -66,7 +66,7 @@ def test_figures_run_scripts_against_the_registry_and_write_a_manifest(lay):
     assert set(man["figures"]) == {"acc.pdf"} and man["figures"]["acc.pdf"]["script"] == "acc.py"
     assert len(man["figures"]["acc.pdf"]["script_sha256"]) == 64 and man["registry_sha256"] == man["figures"]["acc.pdf"]["registry_sha256"]
     assert (lay.paper / "figures" / "acc.pdf").read_bytes().startswith(b"%PDF")
-    assert "paper/figures/acc.pdf" in out["paths"]
+    assert "projects/toy/paper/figures/acc.pdf" in out["paths"]
     script.write_text("raise SystemExit(4)")
     with pytest.raises(SubprocessError) as exc:
         paper.run_figures(lay)
@@ -109,7 +109,7 @@ def test_build_runs_results_figures_verify_then_tectonic(lay, monkeypatch):
     (lay.paper / "sections" / "results.tex").write_text("Accuracy is 0.81.\n")
     with pytest.raises(GateError) as exc:
         paper.build(lay, run=tectonic_fake(), which="tectonic")
-    assert exc.value.findings[0]["location"].startswith("paper/sections/results.tex:1")
+    assert exc.value.findings[0]["location"].startswith("projects/toy/paper/sections/results.tex:1")
     (lay.paper / "sections" / "results.tex").write_text(r"Accuracy is \result{r001/method/accuracy}{mean}{2}." + "\n")
     with pytest.raises(SubprocessError) as exc:
         paper.build(lay, run=tectonic_fake(ok=False), which="tectonic")

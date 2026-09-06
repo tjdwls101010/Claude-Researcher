@@ -35,7 +35,7 @@ def test_numbers_only_through_macros(lay):
     )
     out = verify.numbers(lay, [f])
     locs = [(x["location"], x["message"]) for x in out if x["severity"] == "major"]
-    assert [l for l, _ in locs] == ["paper/sections/results.tex:5", "paper/sections/results.tex:6", "paper/sections/results.tex:7"]
+    assert [l for l, _ in locs] == ["projects/toy/paper/sections/results.tex:5", "projects/toy/paper/sections/results.tex:6", "projects/toy/paper/sections/results.tex:7"]
     assert "0.83" in locs[0][1] and "2" in locs[1][1] and "100" in locs[2][1]
 
 
@@ -98,7 +98,7 @@ def test_citations_are_checked_against_sources_and_literature(lay, tmp_path):
     assert by_key["unsaved"][0][0] == "major" and "save-paper" in by_key["unsaved"][0][1]
     assert by_key["unverified"][0][0] == "major" and "literature.md" in by_key["unverified"][0][1]
     assert by_key["missingkey"][0][0] == "major" and "refs.bib" in by_key["missingkey"][0][1]
-    assert all(x["location"].startswith("paper/sections/intro.tex:1") for x in out if x["key"] != "knuth1984")
+    assert all(x["location"].startswith("projects/toy/paper/sections/intro.tex:1") for x in out if x["key"] != "knuth1984")
 
 
 def test_bibtex_parser_handles_nesting_and_strings():
@@ -113,14 +113,14 @@ def test_bibtex_parser_handles_nesting_and_strings():
 
 
 def test_figures_must_come_from_the_manifest_and_gaps_are_named(lay):
-    (lay.paper / "figures").mkdir()
+    (lay.paper / "figures").mkdir(exist_ok=True)
     (lay.paper / "figures" / "manifest.json").write_text(json.dumps({"figures": {"acc.pdf": {}}}))
     f = lay.paper / "sections" / "results.tex"
     f.write_text(r"\includegraphics[width=1in]{figures/acc.pdf} \includegraphics{figures/hand.png}" + "\n\nThe [MATERIAL GAP] here.\n")
     figs = verify.figures(lay, [f])
-    assert len(figs) == 1 and "hand.png" in figs[0]["message"] and figs[0]["location"] == "paper/sections/results.tex:1"
-    gaps = verify.material_gaps([f])
-    assert gaps == [{"severity": "major", "message": "[MATERIAL GAP] left in the draft", "location": "paper/sections/results.tex:3"}]
+    assert len(figs) == 1 and "hand.png" in figs[0]["message"] and figs[0]["location"] == "projects/toy/paper/sections/results.tex:1"
+    gaps = verify.material_gaps([f], lay)
+    assert gaps == [{"severity": "major", "message": "[MATERIAL GAP] left in the draft", "location": "projects/toy/paper/sections/results.tex:3"}]
 
 
 def test_verify_paper_composes_and_raises(lay, tmp_path):
@@ -130,7 +130,7 @@ def test_verify_paper_composes_and_raises(lay, tmp_path):
     (lay.paper / "sections" / "results.tex").write_text(r"We get 0.9 \cite{vaswani2017}." + "\n")
     with pytest.raises(__import__("research.errors", fromlist=["GateError"]).GateError) as exc:
         verify.verify_paper(lay, result_files=[lay.paper / "sections" / "results.tex"])
-    assert exc.value.findings[0]["location"] == "paper/sections/results.tex:1"
+    assert exc.value.findings[0]["location"] == "projects/toy/paper/sections/results.tex:1"
     (lay.paper / "sections" / "results.tex").write_text(r"We cite \cite{vaswani2017}." + "\n")
     out = verify.verify_paper(lay, result_files=[lay.paper / "sections" / "results.tex"])
     assert out["status"] == "verified"

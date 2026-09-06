@@ -132,6 +132,46 @@ def _parse_seeds(text: str) -> list[int]:
         raise InputError("--seeds: comma-separated integers, e.g. 1,2,3")
 
 
+def cmd_paper_init(args):
+    from pathlib import Path
+
+    from . import paper
+
+    lay = _open(args)
+    return paper.init(lay, Path(args.template), main=args.main, source=args.source)
+
+
+def cmd_paper_results(args):
+    from . import paper
+
+    lay = _open(args)
+    return {"status": "ok", "paths": [lay.rel(paper.write_results(lay))]}
+
+
+def cmd_paper_figures(args):
+    from . import paper
+
+    return paper.run_figures(_open(args))
+
+
+def _result_files(lay, names):
+    return [lay.paper / n for n in names] if names else None
+
+
+def cmd_paper_verify(args):
+    from . import verify
+
+    lay = _open(args)
+    return verify.verify_paper(lay, result_files=_result_files(lay, args.result_files))
+
+
+def cmd_build(args):
+    from . import paper
+
+    lay = _open(args)
+    return paper.build(lay, final=args.final, offline=args.offline, result_files=_result_files(lay, args.result_files))
+
+
 def cmd_doctor(args):
     from .doctor import doctor
 
@@ -192,7 +232,7 @@ def register(sub):
     sp.add_argument("--seeds", default="1,2,3,4,5", help="comma-separated integer seeds passed as RESEARCH_SEEDS (default 1,2,3,4,5; how many is the claim's call, recorded in a Decision when it differs)")
     sp.add_argument("--confirmatory", action="store_true", help="a preregistered, design-reviewed run whose numbers may support a claim; needs --prereg")
     sp.add_argument("--prereg", help="preregistration id the run tests (required with --confirmatory; recorded otherwise)")
-    sp.add_argument("--cwd", help="working directory for the experiment (default: project root)")
+    sp.add_argument("--cwd", help="working directory for the experiment (default: the current directory; recorded in run.json)")
     sp.add_argument("--timeout", type=float, help="seconds before the experiment is interrupted (default: none)")
     sp.epilog = "The experiment command follows `--`: run start <slug> --name N --seeds 1,2,3 -- python3 train.py --lr 1e-3"
     sp.set_defaults(func=cmd_run_start)
@@ -210,6 +250,32 @@ def register(sub):
     sp.add_argument("--strict", action="store_true", help="exit 6 when any warning remains")
     sp.add_argument("--min-seeds", type=int, help="seeds every entry needs (default: the run's expected_seeds)")
     sp.set_defaults(func=cmd_registry)
+
+    pa = sub.add_parser("paper", help="the draft: init from a conference template, regenerate results.tex, run figure scripts, verify numbers/citations/figures", description="Numbers reach the PDF only as \\result{entry}{stat}{digits} (pre-rendered from the registry into results.tex); \\nonresult{literal}{reason} is the explicit exception for literature numbers. Figures are produced by paper/figures/<name>.py scripts and recorded in a manifest. verify refuses anything else with a file:line.")
+    pasub = pa.add_subparsers(dest="paper_cmd", required=True, metavar="ACTION")
+    sp = pasub.add_parser("init", help="copy a conference template into paper/template/ with source URL and file hashes; scaffold main.tex, refs.bib, results.tex", description="The template is never bundled: verify the current year's files first (ultra-search), download them, then point --template at that directory. An existing main.tex is kept.")
+    sp.add_argument("slug", help="project slug")
+    sp.add_argument("--template", required=True, help="directory holding the downloaded template (style files and example main)")
+    sp.add_argument("--main", default="main.tex", help="the template's main .tex file, copied to paper/main.tex when none exists (default main.tex)")
+    sp.add_argument("--source", help="URL the template was downloaded from (recorded in provenance.json)")
+    sp.set_defaults(func=cmd_paper_init)
+    sp = pasub.add_parser("results", help="regenerate paper/results.tex from experiments/registry.json", description="One control sequence per (entry, statistic, digits 0-6), plus \\result, \\nonresult and \\resultclass. An unknown entry is a LaTeX error at build time.")
+    sp.add_argument("slug", help="project slug")
+    sp.set_defaults(func=cmd_paper_results)
+    sp = pasub.add_parser("figures", help="run paper/figures/*.py (each reads $RESEARCH_REGISTRY, writes $RESEARCH_FIGURE_OUT) and write figures/manifest.json", description="Scripts get RESEARCH_REGISTRY, RESEARCH_FIGURE_OUT (<name>.pdf), RESEARCH_SCRIPTS (for `from research.registry import load`) and MPLBACKEND=pdf. A script that exits non-zero or writes nothing fails the command.")
+    sp.add_argument("slug", help="project slug")
+    sp.set_defaults(func=cmd_paper_figures)
+    sp = pasub.add_parser("verify", help="numbers only via macros in result files, citations saved+verified (arXiv) or human-verified (literature.md), figures from the manifest, no [MATERIAL GAP]", description="Exit 6 with one finding per problem, each with paper/<file>:<line>. Exploratory entries cited in a result file are warnings.")
+    sp.add_argument("slug", help="project slug")
+    sp.add_argument("--result-files", nargs="+", metavar="FILE", help="paths under paper/ whose numbers must all be macros (default: project.md result_files, else sections/results.tex and sections/experiments.tex when present)")
+    sp.set_defaults(func=cmd_paper_verify)
+
+    sp = sub.add_parser("build", help="paper results + figures + verify + tectonic → paper/build/main.pdf; --final adds the review and viva gates", description="--final refuses (exit 6, naming what is missing) unless a scope:draft review of this exact draft hash has every major finding dispositioned and a viva record is bound to the same hash. Any edit to the draft invalidates both.")
+    sp.add_argument("slug", help="project slug")
+    sp.add_argument("--final", action="store_true", help="the submission build: requires the draft review and the viva bound to the current draft hash")
+    sp.add_argument("--result-files", nargs="+", metavar="FILE", help="as in `paper verify`")
+    sp.add_argument("--offline", action="store_true", help="tectonic --only-cached: build from the local package cache without the network (fails if a package was never fetched)")
+    sp.set_defaults(func=cmd_build)
 
     sp = sub.add_parser("doctor", help="check tectonic, codex, claude and python deps; print install commands (exit 7 if a required one is missing)", description="Verify every external prerequisite of build, review and ideate.")
     sp.set_defaults(func=cmd_doctor)
