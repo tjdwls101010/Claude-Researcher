@@ -12,6 +12,7 @@ EXIT_FETCH = 4
 EXIT_CONVERT = 5
 EXIT_UNVERIFIED = 6
 EXIT_DOCTOR = 7
+EXIT_NOTE = 8  # source saved, but the Korean note is missing or structurally broken
 
 
 class SavePaperError(Exception):

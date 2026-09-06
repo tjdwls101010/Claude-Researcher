@@ -15,6 +15,11 @@ Exit codes:
   5  conversion failed (pandoc, anydoc, no LaTeXML article)
   6  saved but NOT verified: coverage check failed or PDF route; read `conversion.known_losses`
   7  prerequisites missing (doctor), or `describe <id>` run without OPENROUTER_API_KEY
+  8  source saved but the note is missing or structurally broken (read `note.error`; retry with `note <id>`)
+
+Every saved source also gets a Korean study note (papers/<id>.md), written by the
+`paper-note` agent run headlessly (`claude -p --agent paper-note`; codex once as a
+fallback when Claude declines). `--no-note` saves the source only.
 """
 
 from __future__ import annotations
@@ -31,10 +36,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from savepaper import __version__  # noqa: E402
 from savepaper.arxiv import ArxivClient, resolve, safe_id  # noqa: E402
-from savepaper.errors import EXIT_DOCTOR, EXIT_OK, EXIT_UNVERIFIED, EXIT_USAGE, AmbiguousRef, SavePaperError  # noqa: E402
+from savepaper.errors import EXIT_DOCTOR, EXIT_NOTE, EXIT_OK, EXIT_UNVERIFIED, EXIT_USAGE, AmbiguousRef, SavePaperError  # noqa: E402
+from savepaper.index import write_index  # noqa: E402
 from savepaper.publish import Layout  # noqa: E402
 
 ROUTES = ("auto", "html", "pdf")
+NOTE_RUNNERS = ("claude", "codex")
 
 
 def project_root() -> Path:
@@ -50,6 +57,17 @@ def eprint(*a):
 
 
 # --- commands -----------------------------------------------------------------
+
+
+def note_step(out, layout, args) -> None:
+    """Attach the note outcome to ``out`` and raise its exit to 8 when the note is not usable."""
+    from savepaper.note import note_for
+
+    sid = safe_id(out.id)
+    res = note_for(out.status, layout.note_md(sid), layout.source_md(sid), enabled=not args.no_note, force=getattr(args, "force_note", False), runner=args.note_runner, project_root=project_root(), log=eprint)
+    out.note = res.as_dict()
+    if not res.ok and res.status != "skipped":
+        out.exit = max(out.exit, EXIT_NOTE)
 
 
 def cmd_save(args) -> int:
@@ -75,14 +93,40 @@ def cmd_save(args) -> int:
     except AmbiguousRef as exc:
         print(json.dumps({"error": str(exc), "candidates": [c.as_dict() for c in exc.candidates]}, ensure_ascii=False, indent=2))
         return exc.exit_code
+    note_step(out, layout, args)
+    if out.note and out.note.get("status") == "written":
+        write_index(layout.papers_dir)
+    print(out.summary())
+    return out.exit
+
+
+def cmd_note(args) -> int:
+    from savepaper.frontmatter import parse
+    from savepaper.pipeline import Outcome
+
+    layout = Layout(Path(args.out))
+    sid = safe_id(args.id)
+    md = layout.source_md(sid)
+    if not md.exists():
+        eprint(f"no saved source at {md}; run `save {args.id}` first")
+        return EXIT_USAGE
+    fm, _ = parse(md.read_text(encoding="utf-8"))
+    out = Outcome(id=args.id, version=(fm.get("arxiv") or {}).get("version"), route=(fm.get("conversion") or {}).get("route"), verified=bool(fm.get("verified")), status="up-to-date", path=str(md))
+    args.no_note = False
+    args.force_note = args.force
+    note_step(out, layout, args)
+    if out.note.get("status") == "written":
+        write_index(layout.papers_dir)
     print(out.summary())
     return out.exit
 
 
 def cmd_batch(args) -> int:
-    from savepaper.pipeline import save_one
+    from concurrent.futures import ThreadPoolExecutor
 
     from savepaper.describe import load_api_key
+    from savepaper.note import concurrency
+    from savepaper.pipeline import save_one
 
     layout = Layout(Path(args.out))
     client = ArxivClient()
@@ -90,30 +134,55 @@ def cmd_batch(args) -> int:
     api_key = load_api_key(project_root() / ".env") if describe else None
     refs = [l.strip() for l in Path(args.ids_file).read_text(encoding="utf-8").splitlines()]
     refs = [r for r in refs if r and not r.startswith("#")]
-    worst = EXIT_OK
-    rows = []
-    for i, ref in enumerate(refs, start=1):
-        eprint(f"[{i}/{len(refs)}] {ref}")
-        try:
-            out = save_one(ref, layout, client, route=args.route, force=args.force, with_assets=not args.no_assets, describe=describe, api_key=api_key)
-            row = out.as_dict()
-        except SavePaperError as exc:
-            row = {"id": ref, "exit": exc.exit_code, "status": "failed", "error": str(exc)}
-            if isinstance(exc, AmbiguousRef):
-                row["candidates"] = [c.as_dict() for c in exc.candidates]
-            eprint(f"  FAILED ({exc.exit_code}): {exc}")
-        except Exception as exc:  # keep the batch going; the row records what happened
-            row = {"id": ref, "exit": 1, "status": "failed", "error": f"{type(exc).__name__}: {exc}"}
-            eprint(f"  FAILED (1): {exc}")
-        worst = max(worst, int(row.get("exit", 1)))
+    rows: list[dict] = []
+    pending = []
+
+    def emit(row):
         rows.append(row)
         if args.jsonl:
             with open(args.jsonl, "a", encoding="utf-8") as f:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    def finish(out):
+        # runs in the pool: the only write under papers/ is the note's atomic replace; README is the main thread's
+        try:
+            note_step(out, layout, args)
+        except Exception as exc:
+            out.note = {"status": "failed", "error": f"crash: {type(exc).__name__}: {exc}"}
+            out.exit = max(out.exit, EXIT_NOTE)
+        return out
+
+    # notes overlap with the next paper's download and with each other; NOTE_CONCURRENCY caps the headless sessions
+    with ThreadPoolExecutor(max_workers=concurrency(project_root(), args.note_concurrency)) as pool:
+        for i, ref in enumerate(refs, start=1):
+            eprint(f"[{i}/{len(refs)}] {ref}")
+            try:
+                out = save_one(ref, layout, client, route=args.route, force=args.force, with_assets=not args.no_assets, describe=describe, api_key=api_key)
+            except SavePaperError as exc:
+                row = {"id": ref, "exit": exc.exit_code, "status": "failed", "error": str(exc)}
+                if isinstance(exc, AmbiguousRef):
+                    row["candidates"] = [c.as_dict() for c in exc.candidates]
+                eprint(f"  FAILED ({exc.exit_code}): {exc}")
+                emit(row)
+                continue
+            except Exception as exc:  # keep the batch going; the row records what happened
+                emit({"id": ref, "exit": 1, "status": "failed", "error": f"{type(exc).__name__}: {exc}"})
+                eprint(f"  FAILED (1): {exc}")
+                continue
+            pending.append(pool.submit(finish, out))
+        for fut in pending:
+            out = fut.result()
+            eprint(f"  {out.id}: {out.summary()}")
+            emit(out.as_dict())
+    if any((r.get("note") or {}).get("status") == "written" for r in rows):
+        write_index(layout.papers_dir)
+    worst = max([EXIT_OK] + [int(r.get("exit", 1)) for r in rows])
     ok = sum(1 for r in rows if r.get("exit") == 0)
     unverified = sum(1 for r in rows if r.get("exit") == EXIT_UNVERIFIED)
     failed = len(rows) - ok - unverified
-    print(f"batch: {len(rows)} refs  ok={ok}  unverified={unverified}  failed={failed}")
+    notes = {k: sum(1 for r in rows if (r.get("note") or {}).get("status") == k) for k in ("written", "kept", "skipped")}
+    notes_failed = sum(1 for r in rows if (r.get("note") or {}).get("status") in ("failed", "refused"))
+    print(f"batch: {len(rows)} refs  ok={ok}  unverified={unverified}  failed={failed}  notes: written={notes['written']} kept={notes['kept']} skipped={notes['skipped']} failed={notes_failed}")
     return worst
 
 
@@ -224,7 +293,12 @@ def build_parser() -> argparse.ArgumentParser:
     def add_out(sp):
         sp.add_argument("--out", default=default_out(), help="papers directory to write into (default: $CLAUDE_PROJECT_DIR/papers or ./papers)")
 
-    sp = sub.add_parser("save", help="save one paper as papers/sources/<id>.md (+ figures) and refresh the index", description="Save one arXiv paper. <ref> may be an arXiv URL (abs/pdf/html, with or without vN), a bare id (new or legacy style), or a title; an ambiguous title prints candidates and exits 3 -- it is never auto-picked.")
+    def add_note(sp, with_skip=True):
+        if with_skip:
+            sp.add_argument("--no-note", action="store_true", help="save the source only; skip the Korean note (papers/<id>.md). Otherwise every (re)saved source gets a fresh note and an up-to-date source gets one if it has none")
+        sp.add_argument("--note-runner", choices=NOTE_RUNNERS, default="claude", help="who writes the note: claude runs `claude -p --agent paper-note` (model and tools come from .claude/agents/paper-note.md) and falls back to codex once when the model declines or ends without a file; codex runs `codex exec` (CODEX_MODEL from .env, default gpt-6-astra) with the same agent body from the start. Auth, permission and timeout failures never fall back: they exit 8")
+
+    sp = sub.add_parser("save", help="save one paper as papers/sources/<id>.md (+ figures), write its Korean note, refresh the index", description="Save one arXiv paper. <ref> may be an arXiv URL (abs/pdf/html, with or without vN), a bare id (new or legacy style), or a title; an ambiguous title prints candidates and exits 3 -- it is never auto-picked.")
     sp.add_argument("ref", help="arXiv URL, arXiv id (e.g. 2503.17523, 2503.17523v2, hep-th/9901001) or paper title")
     sp.add_argument("--route", choices=ROUTES, default="auto", help="html: arXiv HTML via LaTeXML adapter + pandoc (checked); pdf: anydoc text-only fallback (unverified); auto: html, then pdf if arXiv has no HTML (default)")
     sp.add_argument("--version", type=int, default=None, dest="version", help="pin an arXiv version number instead of the latest (also overrides a vN in the ref)")
@@ -232,16 +306,26 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--no-assets", action="store_true", help="skip the e-print download and figure rendering; image links point at arxiv.org instead of local PNGs")
     sp.add_argument("--no-describe", action="store_true", help="skip figure alt text. By default every figure is described by an OpenRouter vision model (costs money: measured $0.006 per figure with gpt-5.6-luna at reasoning=high, 2026-09-06); without OPENROUTER_API_KEY the step is skipped with a warning and the alts stay empty")
     sp.add_argument("--model", default=None, help="OpenRouter model for alt text (default: OPENROUTER_MODEL from .env, else openai/gpt-5.6-luna)")
+    add_note(sp)
     add_out(sp)
     sp.set_defaults(func=cmd_save)
 
-    sp = sub.add_parser("batch", help="save many refs from a file, continuing past failures", description="Save every ref listed in a file (one per line, # comments allowed). One failure does not stop the batch; the exit code is the worst one seen. Alt text is generated for every paper unless --no-describe.")
+    sp = sub.add_parser("note", help="write (or with --force rewrite) the Korean note of an already saved source", description="Run the paper-note agent headlessly for papers/sources/<id>.md and publish papers/<id>.md atomically; the previous note survives any failure. Without --force an existing note is kept. Exit 8 when the note is missing or note-check finds structural problems.")
+    sp.add_argument("id", help="arXiv id of a saved source")
+    sp.add_argument("--force", action="store_true", help="rewrite even if papers/<id>.md exists (after a review found errors, or after re-saving a new version)")
+    add_note(sp, with_skip=False)
+    add_out(sp)
+    sp.set_defaults(func=cmd_note)
+
+    sp = sub.add_parser("batch", help="save many refs from a file (+ notes), continuing past failures", description="Save every ref listed in a file (one per line, # comments allowed) and write each one's Korean note as soon as its source is published. One failure does not stop the batch; the exit code is the worst one seen. Alt text is generated for every paper unless --no-describe; notes unless --no-note.")
     sp.add_argument("--ids-file", required=True, help="text file with one arXiv ref per line")
     sp.add_argument("--route", choices=ROUTES, default="auto", help="conversion route for every ref (see `save --help`)")
     sp.add_argument("--force", action="store_true", help="re-convert papers that are already up to date")
     sp.add_argument("--no-assets", action="store_true", help="skip figure download/rendering for every ref")
     sp.add_argument("--no-describe", action="store_true", help="skip figure alt text for every ref (see `save --help`)")
-    sp.add_argument("--jsonl", default=None, help="append one JSON line per ref here: {id, version, route, coverage, verified, exit, path, losses, ...}")
+    sp.add_argument("--jsonl", default=None, help="append one JSON line per ref here: {id, version, route, coverage, verified, exit, path, losses, note: {status, runner, check, cost_usd, ...}}; a paper's line is written once its note has finished")
+    add_note(sp)
+    sp.add_argument("--note-concurrency", type=int, default=None, help="how many notes are written at once. Each source's note starts the moment it is published and overlaps with the next download (default: NOTE_CONCURRENCY from .env, else 3)")
     add_out(sp)
     sp.set_defaults(func=cmd_batch)
 
