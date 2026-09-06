@@ -27,12 +27,13 @@ def test_numbers_only_through_macros(lay):
     f.write_text(
         "% a comment with 99 numbers\n"
         r"Our method reaches \result{r001/method/accuracy}{mean}{2} (\result{r001/method/accuracy}{n}{0} seeds), " + "\n"
-        r"beating the \nonresult{0.61}{reported in Smith et al. 2024, Table 3} baseline~\cite{smith2024}." + "\n"
+        r"beating the \nonresult{0.61}{\cite{smith2024} Table 3} baseline~\cite{smith2024}." + "\n"
         r"\begin{tabular}{lcc} \multicolumn{2}{c}{x} \\ \cmidrule(lr){1-2}" + "\n"
         r"Row & 0.83 & \result{r001/method/accuracy}{std}{3} \\ \end{tabular}" + "\n"
         r"\includegraphics[width=0.5\textwidth]{figures/acc.pdf} See Section~\ref{sec:3} and Figure~2." + "\n"
         r"Trained for 100 epochs.\vspace{2mm}" + "\n"
     )
+    (lay.paper / "refs.bib").write_text("@article{smith2024, title={x}}")
     out = verify.numbers(lay, [f])
     locs = [(x["location"], x["message"]) for x in out if x["severity"] == "major"]
     assert [l for l, _ in locs] == ["projects/toy/paper/sections/results.tex:5", "projects/toy/paper/sections/results.tex:6", "projects/toy/paper/sections/results.tex:7"]
@@ -114,6 +115,7 @@ def test_bibtex_parser_handles_nesting_and_strings():
 
 def test_figures_must_come_from_the_manifest_and_gaps_are_named(lay):
     (lay.paper / "figures").mkdir(exist_ok=True)
+    (lay.paper / "figures" / "acc.pdf").write_bytes(b"%PDF")
     (lay.paper / "figures" / "manifest.json").write_text(json.dumps({"figures": {"acc.pdf": {}}}))
     f = lay.paper / "sections" / "results.tex"
     f.write_text(r"\includegraphics[width=1in]{figures/acc.pdf} \includegraphics{figures/hand.png}" + "\n\nThe [MATERIAL GAP] here.\n")
@@ -134,3 +136,74 @@ def test_verify_paper_composes_and_raises(lay, tmp_path):
     (lay.paper / "sections" / "results.tex").write_text(r"We cite \cite{vaswani2017}." + "\n")
     out = verify.verify_paper(lay, result_files=[lay.paper / "sections" / "results.tex"])
     assert out["status"] == "verified"
+
+
+def test_rendered_arguments_units_and_whitespace_are_not_exempt(lay):
+    registry_with(lay, "r001/method/accuracy")
+    f = lay.paper / "sections" / "results.tex"
+    f.write_text(
+        "\\caption{Accuracy 0.91 across runs}\n"
+        "\\multicolumn{2}{c}{0.92} \\multirow{2}{*}{0.93}\n"
+        "\\newcommand{\\score}{0.94}\n"
+        "Latency 5ms and $x_1 = 7/8$ and the 2nd run, H100 GPUs, GPT-4.\n"
+        "\\textcolor{red}{0.95} \\parbox{3cm}{0.96}\n"
+        "\\nonresult{0.61}{}\n"
+        "\\nonresult{0.62}{Smith et al. Table 3}\n"
+        "\\nonresult{0.63}{\\cite{vaswani2017} Table 3}\n"
+        "\\nonresult{5}{seed count fixed in D003}\n"
+    )
+    (lay.paper / "refs.bib").write_text("@article{vaswani2017, title={x}}")
+    out = verify.numbers(lay, [f])
+    flagged = {(x["location"].rsplit(":", 1)[1], x["message"].split("'")[1]) for x in out if x["severity"] == "major" and "bare number" in x["message"]}
+    assert {("1", "0.91"), ("2", "0.92"), ("2", "0.93"), ("3", "0.94"), ("4", "5ms"), ("4", "7"), ("4", "8"), ("5", "0.95"), ("5", "0.96")} <= flagged
+    assert not any(v in ("1", "2", "100", "4") for _, v in flagged), "x_1, 2nd, H100, GPT-4 are identifiers, not results"
+    reasons = [x for x in out if x["message"].startswith("\\nonresult{") and x["severity"] == "major"]
+    assert {r["location"].rsplit(":", 1)[1] for r in reasons} == {"6", "7"}, "a reason must name a bib key, a saved source or a decision"
+
+
+def test_citation_syntax_variants_and_multiline(lay, tmp_path):
+    make_sources(tmp_path)
+    (lay.paper / "refs.bib").write_text(BIB)
+    (lay.paper / "main.tex").write_text("\\input {sections/intro}\n")
+    (lay.paper / "sections" / "intro.tex").write_text("\\cite {unsaved}\n\\citep{vaswani2017,\n  unverified}\n\\parencites{knuth1984}{missingkey}\n\\citetalias{pdfpaper}\n")
+    lay.literature_md.write_text("---\ntype: Literature\nentries:\n  - key: knuth1984\n    verified: {by: human:seongjin, at: x}\n---\n")
+    out = verify.citations(lay, lay.paper / "main.tex", lay.paper / "refs.bib")
+    keys = {x["key"]: x["location"].rsplit(":", 1)[1] for x in out}
+    assert keys == {"unsaved": "1", "unverified": "2", "missingkey": "4", "pdfpaper": "5"}
+
+
+def test_end_document_inside_a_definition_does_not_stop_the_scan(lay):
+    f = lay.paper / "sections" / "results.tex"
+    f.write_text("\\newcommand{\\finish}{\\end{document}}\nWe get 0.9.\n\\finish\n")
+    assert any("0.9" in x["message"] for x in verify.numbers(lay, [f]))
+
+
+def test_bibtex_paren_entries_with_quoted_parens():
+    entries = verify.parse_bibtex('@article(a, title="A (test)", eprint={2501.00001}, archivePrefix={arXiv})')
+    assert entries["a"]["eprint"] == "2501.00001" and entries["a"]["title"] == "A (test)"
+
+
+def test_figures_check_path_existence_and_output_hash(lay):
+    import hashlib
+
+    figs = lay.paper / "figures"
+    figs.mkdir(exist_ok=True)
+    (figs / "acc.pdf").write_bytes(b"%PDF real")
+    sha = hashlib.sha256(b"%PDF real").hexdigest()
+    (figs / "manifest.json").write_text(json.dumps({"figures": {"acc.pdf": {"output_sha256": sha}, "gone.pdf": {"output_sha256": "0" * 64}}}))
+    f = lay.paper / "sections" / "results.tex"
+    f.write_text("\\includegraphics{figures/acc.pdf}\n\\includegraphics{figures/../other/acc.pdf}\n\\includegraphics{figures/gone.pdf}\n")
+    out = verify.figures(lay, [f])
+    assert [x["location"].rsplit(":", 1)[1] for x in out] == ["2", "3"]
+    (figs / "acc.pdf").write_bytes(b"%PDF swapped")
+    assert [x["location"].rsplit(":", 1)[1] for x in verify.figures(lay, [f])] == ["1", "2", "3"]
+
+
+def test_inputs_outside_paper_and_no_result_files_are_reported(lay, tmp_path):
+    (tmp_path / "outside.tex").write_text("x")
+    (lay.paper / "main.tex").write_text("\\input{../../../outside}\n")
+    (lay.paper / "refs.bib").write_text("")
+    with pytest.raises(__import__("research.errors", fromlist=["GateError"]).GateError) as exc:
+        verify.verify_paper(lay)
+    msgs = " ".join(f["message"] for f in exc.value.findings)
+    assert "outside" in msgs and "no result file" in msgs.lower()

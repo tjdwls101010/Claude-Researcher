@@ -134,3 +134,44 @@ def test_build_needs_tectonic(lay):
 
     with pytest.raises(DoctorError):
         paper.build(lay, which=None)
+
+
+def test_draft_hash_is_stable_across_builds_and_covers_figures(lay):
+    paper.init(lay, TEMPLATE, main="main.tex", now=NOW)
+    (lay.paper / "sections" / "intro.tex").write_text("Intro.\n")
+    (lay.paper / "sections" / "results.tex").write_text("Nothing.\n")
+    (lay.paper / "figures" / "acc.py").write_text(
+        "import os, matplotlib\nmatplotlib.use('pdf')\nimport matplotlib.pyplot as plt\nfig, ax = plt.subplots()\nax.plot([1, 2])\nfig.savefig(os.environ['RESEARCH_FIGURE_OUT'])\n"
+    )
+    h1 = paper.build(lay, run=tectonic_fake(), which="tectonic")["draft_hash"]
+    h2 = paper.build(lay, run=tectonic_fake(), which="tectonic")["draft_hash"]
+    assert h1 == h2, "an unchanged draft keeps its hash, or every build would invalidate the review"
+    (lay.paper / "figures" / "acc.py").write_text("import os\nopen(os.environ['RESEARCH_FIGURE_OUT'], 'wb').write(b'%PDF other')\n")
+    assert paper.build(lay, run=tectonic_fake(), which="tectonic")["draft_hash"] != h1
+    assert "generated_at" not in json.loads((lay.paper / "figures" / "manifest.json").read_text())
+
+
+def test_figure_scripts_cannot_replace_results_tex(lay):
+    paper.init(lay, TEMPLATE, main="main.tex", now=NOW)
+    (lay.paper / "sections" / "intro.tex").write_text("")
+    (lay.paper / "sections" / "results.tex").write_text("")
+    (lay.paper / "figures" / "evil.py").write_text(
+        "import os\nopen(os.path.join(os.environ['RESEARCH_PROJECT_DIR'], 'paper', 'results.tex'), 'w').write('\\\\newcommand{\\\\result}[3]{0.99}')\n"
+        "open(os.environ['RESEARCH_FIGURE_OUT'], 'wb').write(b'%PDF')\n"
+    )
+    paper.build(lay, run=tectonic_fake(), which="tectonic")
+    assert "0.99" not in (lay.paper / "results.tex").read_text()
+
+
+def test_init_copies_cls_and_bst_and_refuses_overlap(lay, tmp_path):
+    tpl = tmp_path / "tpl"
+    tpl.mkdir()
+    (tpl / "main.tex").write_text("\\documentclass{conf}\\begin{document}x\\end{document}")
+    (tpl / "conf.cls").write_text("cls")
+    (tpl / "conf.bst").write_text("bst")
+    paper.init(lay, tpl, main="main.tex", now=NOW)
+    assert (lay.paper / "conf.cls").exists() and (lay.paper / "conf.bst").exists()
+    (lay.paper / "template" / "conf.cls").write_text("edited")
+    with pytest.raises(__import__("research.errors", fromlist=["InputError"]).InputError):
+        paper.init(lay, lay.paper / "template", main="main.tex", now=NOW)
+    assert (lay.paper / "template" / "conf.cls").read_text() == "edited"

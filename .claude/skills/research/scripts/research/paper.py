@@ -18,7 +18,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from . import registry as registry_mod
-from .errors import DoctorError, GateError, NotFoundError, SubprocessError
+from .errors import DoctorError, GateError, InputError, NotFoundError, SubprocessError
 from .project import Layout, now_iso, write_readme
 
 STATS = ("mean", "std", "min", "max", "n")
@@ -42,9 +42,19 @@ def init(lay: Layout, template: Path, *, main: str = "main.tex", source: str | N
     if not (template / main).is_file():
         raise NotFoundError(f"--main {main!r} is not a file in {template}")
     tdir = lay.paper / "template"
+    try:
+        template.resolve().relative_to(lay.paper.resolve())
+        raise InputError(f"--template must point at the downloaded files, not at {lay.rel(tdir)} itself")
+    except ValueError:
+        pass
+    fresh = lay.paper / "template.new"
+    if fresh.exists():
+        shutil.rmtree(fresh)
+    lay.paper.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(template, fresh, symlinks=False)
     if tdir.exists():
         shutil.rmtree(tdir)
-    shutil.copytree(template, tdir, symlinks=False)
+    os.rename(fresh, tdir)
     files = {p.relative_to(tdir).as_posix(): _sha256(p) for p in sorted(tdir.rglob("*")) if p.is_file()}
     (tdir / "provenance.json").write_text(json.dumps({"source": source, "main": main, "copied_at": now or now_iso(), "files": files}, indent=1), encoding="utf-8")
     paths = [lay.rel(tdir / "provenance.json")]
@@ -58,10 +68,10 @@ def init(lay: Layout, template: Path, *, main: str = "main.tex", source: str | N
             text = text.replace("\\begin{document}", "\\input{results}\n\\begin{document}", 1)
         main_tex.write_text(text, encoding="utf-8")
         paths.append(lay.rel(main_tex))
-    for name, sty in ((lay.paper / "template" / p.name, p) for p in template.rglob("*.sty") if p.parent == template):
-        target = lay.paper / sty.name
+    for dep in sorted(p for p in template.iterdir() if p.is_file() and p.suffix in (".sty", ".cls", ".bst")):
+        target = lay.paper / dep.name
         if not target.exists():
-            shutil.copyfile(sty, target)  # the style file must sit beside main.tex for tectonic to find it
+            shutil.copyfile(dep, target)  # style, class and bib-style files must sit beside main.tex for tectonic to find them
             paths.append(lay.rel(target))
     if not (lay.paper / "refs.bib").exists():
         (lay.paper / "refs.bib").write_text("", encoding="utf-8")
@@ -89,6 +99,13 @@ def _tex_escape(s: str) -> str:
 
 def write_results(lay: Layout) -> Path:
     """``paper/results.tex``: the macro definitions and one pre-rendered control sequence per (entry, statistic, digits)."""
+    out = lay.paper / "results.tex"
+    lay.paper.mkdir(parents=True, exist_ok=True)
+    out.write_text(render_results(lay), encoding="utf-8")
+    return out
+
+
+def render_results(lay: Layout) -> str:
     reg = registry_mod.load(lay) if lay.registry_json.is_file() else {"entries": []}
     lines = [RESULTS_HEADER, "\\makeatletter"]
     lines.append("\\newcommand{\\result}[3]{\\ifcsname res@#1@#2@#3\\endcsname\\csname res@#1@#2@#3\\endcsname\\else\\errmessage{research: no registry entry '#1' with statistic '#2' at #3 digits -- run `research.py registry` and `paper results`}\\fi}")
@@ -108,10 +125,7 @@ def write_results(lay: Layout) -> Path:
                 if stat == "n":
                     break
     lines.append("\\makeatother")
-    out = lay.paper / "results.tex"
-    lay.paper.mkdir(parents=True, exist_ok=True)
-    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return out
+    return "\n".join(lines) + "\n"
 
 
 # --- figures --------------------------------------------------------------------------------
@@ -124,7 +138,7 @@ def run_figures(lay: Layout, *, run=subprocess.run, timeout: float = FIGURE_TIME
     scripts = sorted(p for p in figs.glob("*.py") if p.is_file())
     reg_path = lay.registry_json
     reg_sha = _sha256(reg_path) if reg_path.is_file() else None
-    manifest = {"generated_at": now_iso(), "registry_sha256": reg_sha, "figures": {}}
+    manifest = {"registry_sha256": reg_sha, "figures": {}}  # no timestamp: the draft hash covers this file
     paths = []
     scripts_dir = Path(__file__).resolve().parent.parent
     sibling = scripts_dir.parent.parent / "save-paper" / "scripts"  # research.* imports savepaper.frontmatter
@@ -133,7 +147,8 @@ def run_figures(lay: Layout, *, run=subprocess.run, timeout: float = FIGURE_TIME
         if out_pdf.exists():
             out_pdf.unlink()
         env = dict(os.environ)
-        env.update({"RESEARCH_REGISTRY": str(reg_path), "RESEARCH_FIGURE_OUT": str(out_pdf), "RESEARCH_SCRIPTS": str(scripts_dir), "RESEARCH_PROJECT_DIR": str(lay.dir), "MPLBACKEND": "pdf"})
+        # SOURCE_DATE_EPOCH makes matplotlib's PDF metadata reproducible, so an unchanged script + registry gives unchanged bytes
+        env.update({"RESEARCH_REGISTRY": str(reg_path), "RESEARCH_FIGURE_OUT": str(out_pdf), "RESEARCH_SCRIPTS": str(scripts_dir), "RESEARCH_PROJECT_DIR": str(lay.dir), "MPLBACKEND": "pdf", "SOURCE_DATE_EPOCH": "0"})
         env["PYTHONPATH"] = os.pathsep.join([str(scripts_dir), str(sibling)] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else []))
         try:
             proc = run(["python3", str(script)], cwd=str(figs), env=env, capture_output=True, text=True, timeout=timeout)
@@ -154,12 +169,13 @@ def run_figures(lay: Layout, *, run=subprocess.run, timeout: float = FIGURE_TIME
 
 
 def draft_files(lay: Layout) -> list[Path]:
-    """What the draft hash covers: every .tex, .bib and .sty under paper/ (build/ excluded) plus the figure manifest."""
+    """What the draft hash covers: every .tex/.bib/.sty/.cls/.bst under paper/ (build/ excluded), the figure scripts and PDFs, and the manifest."""
     out = []
     for p in sorted(lay.paper.rglob("*")):
         if not p.is_file() or "build" in p.relative_to(lay.paper).parts:
             continue
-        if p.suffix in (".tex", ".bib", ".sty", ".cls", ".bst") or p.name == "manifest.json":
+        rel = p.relative_to(lay.paper).as_posix()
+        if p.suffix in (".tex", ".bib", ".sty", ".cls", ".bst") or p.name == "manifest.json" or (rel.startswith("figures/") and p.suffix in (".py", ".pdf")):
             out.append(p)
     return out
 
@@ -180,8 +196,8 @@ def build(lay: Layout, *, final: bool = False, offline: bool = False, result_fil
         raise NotFoundError(f"no {lay.rel(lay.paper / 'main.tex')} (run `paper init` first)")
     if which is None:
         raise DoctorError("tectonic is not installed: brew install tectonic")
-    write_results(lay)
     figures = run_figures(lay, run=subprocess.run)
+    write_results(lay)  # after the figure scripts, so nothing they wrote can stand in for the generated macros
     verified = verify.verify_paper(lay, result_files=result_files)
     dh = draft_hash(lay)
     gate = {}

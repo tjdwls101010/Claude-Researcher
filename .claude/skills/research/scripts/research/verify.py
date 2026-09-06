@@ -17,21 +17,67 @@ from . import registry as registry_mod
 from .errors import GateError, NotFoundError
 from .project import Layout
 
-RESULT_RE = re.compile(r"\\result\{([^}]*)\}\{([^}]*)\}\{([^}]*)\}")
-NONRESULT_RE = re.compile(r"\\nonresult\{([^}]*)\}\{([^}]*)\}")
-RESULTCLASS_RE = re.compile(r"\\resultclass\{([^}]*)\}")
-NUMBER_RE = re.compile(r"(?<![A-Za-z\\@:._/-])[-+−]?\d+(?:[.,]\d+)*(?:\s?%|\\%)?(?![A-Za-z\\@_/-])")
-# arguments of these macros are layout, labels or references, never results
-_ARG_MACROS = ("multicolumn", "multirow", "cmidrule", "cline", "vspace", "hspace", "setlength", "addtolength", "includegraphics", "resizebox", "rule", "parbox", "minipage", "scalebox", "rotatebox", "arraystretch", "label", "ref", "eqref", "pageref", "cref", "Cref", "autoref", "cite", "citep", "citet", "citealp", "citealt", "citeauthor", "citeyear", "nocite", "input", "include", "bibliography", "bibliographystyle", "usepackage", "documentclass", "begin", "end", "url", "href", "hypersetup", "definecolor", "color", "textcolor", "footnotemark", "footnotetext", "caption", "newcommand", "renewcommand", "def", "linewidth", "textwidth", "columnwidth", "toprule", "midrule", "bottomrule", "hline", "newline", "noindent", "centering", "small", "footnotesize", "scriptsize", "tiny", "large")
+RESULT_RE = re.compile(r"\\result\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}")
+NONRESULT_RE = re.compile(r"\\nonresult\s*\{([^{}]*)\}\s*\{((?:[^{}]|\{[^{}]*\})*)\}")  # the reason may hold a \cite{key}
+RESULTCLASS_RE = re.compile(r"\\resultclass\s*\{([^}]*)\}")
+# a number that renders: not glued to a preceding letter/underscore (x_1, H100, GPT-4 are identifiers); a trailing
+# unit or letter still counts (5ms, 10k) except ordinals (2nd)
+NUMBER_RE = re.compile(r"(?<![A-Za-z_\\@\d.,-])[-+−]?\d+(?:[.,]\d+)*(?:\s?%|\\%|[A-Za-z]+)?")
+_ORDINAL = re.compile(r"^\d+(?:st|nd|rd|th)$")
+# structural arguments (never rendered): how many braced groups to drop after the macro's optional arguments
+_STRUCT_ARGS = {
+    "multicolumn": 2, "multirow": 2, "cmidrule": 1, "cline": 1, "vspace": 1, "hspace": 1, "setlength": 2, "addtolength": 2,
+    "includegraphics": 1, "resizebox": 2, "rule": 2, "parbox": 1, "minipage": 1, "scalebox": 1, "rotatebox": 1,
+    "label": 1, "ref": 1, "eqref": 1, "pageref": 1, "cref": 1, "Cref": 1, "autoref": 1, "cite": 1, "citep": 1, "citet": 1,
+    "citealp": 1, "citealt": 1, "citeauthor": 1, "citeyear": 1, "citeyearpar": 1, "citetalias": 1, "citepalias": 1, "nocite": 1,
+    "parencite": 1, "textcite": 1, "autocite": 1, "parencites": 2, "cites": 2, "input": 1, "include": 1, "bibliography": 1,
+    "bibliographystyle": 1, "usepackage": 1, "documentclass": 1, "begin": 1, "end": 1, "url": 1, "href": 1, "hypersetup": 1,
+    "definecolor": 3, "color": 1, "textcolor": 1, "arraystretch": 1, "renewcommand": 1, "newcommand": 1, "def": 0,
+    "columnwidth": 0, "linewidth": 0, "textwidth": 0, "toprule": 0, "midrule": 0, "bottomrule": 0, "hline": 0,
+}
 _BRACED = r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}"
-_OPT = r"(?:\[[^\]]*\])*"
+_OPT = r"(?:\s*\[[^\]]*\])*"
 _PAREN = r"(?:\([^)]*\))?"
-_ARG_RE = re.compile(r"\\(?:" + "|".join(_ARG_MACROS) + r")\*?" + _PAREN + _OPT + r"(?:\s*" + _BRACED + r")*")
-_OPT_RE = re.compile(r"\\\\\[[^\]]*\]|\\[a-zA-Z]+\[[^\]]*\]")
-CITE_RE = re.compile(r"\\(?:cite|citep|citet|citealp|citealt|citeauthor|citeyear|citeyearpar|nocite|parencite|textcite|autocite)\*?(?:\[[^\]]*\])*\{([^}]*)\}")
-INPUT_RE = re.compile(r"\\(?:input|include)\{([^}]*)\}")
-GRAPHICS_RE = re.compile(r"\\includegraphics\*?(?:\[[^\]]*\])?\{([^}]*)\}")
+_OPT_RE = re.compile(r"\\\\\s*\[[^\]]*\]|\\[a-zA-Z]+\*?\s*\[[^\]]*\]")
+_MACRO_RE = re.compile(r"\\([a-zA-Z]+)\*?")
+CITE_RE = re.compile(r"\\(?:cite|citep|citet|citealp|citealt|citeauthor|citeyear|citeyearpar|citetalias|citepalias|nocite|parencite|textcite|autocite|parencites|cites)\*?(?:\s*\[[^\]]*\])*((?:\s*\{[^}]*\})+)")
+INPUT_RE = re.compile(r"\\(?:input|include)\s*(?:\{([^}]*)\}|([^\s{}\\]+))")
+GRAPHICS_RE = re.compile(r"\\includegraphics\*?(?:\s*\[[^\]]*\])?\s*\{([^}]*)\}")
 ARXIV_RE = re.compile(r"(?:arxiv\.org/(?:abs|pdf)/|arXiv:)\s*(\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?/\d{7})(v\d+)?", re.I)
+_DECISION_REF = re.compile(r"\bD\d{3}\b")
+_SOURCE_REF = re.compile(r"papers/sources/[^\s)]+\.md")
+_CITE_IN_REASON = re.compile(r"\\cite[a-z]*\*?\s*\{([^}]*)\}")
+
+
+def _scrub_structural(text: str) -> str:
+    """Drop the structural braced arguments of known macros; what remains is what the reader sees."""
+    out, i = [], 0
+    while True:
+        m = _MACRO_RE.search(text, i)
+        if not m:
+            out.append(text[i:])
+            break
+        out.append(text[i:m.start()])
+        name = m.group(1)
+        j = m.end()
+        n = _STRUCT_ARGS.get(name)
+        if n is None:
+            out.append(" ")
+            i = j
+            continue
+        pm = re.compile(_PAREN + _OPT).match(text, j)
+        if pm:
+            j = pm.end()
+        for _ in range(n):
+            bm = re.compile(r"\s*" + _BRACED).match(text, j)
+            if not bm:
+                break
+            j = bm.end()
+        out.append(" ")
+        i = j
+    return "".join(out)
+
+
 MATERIAL_GAP = "[MATERIAL GAP]"
 
 
@@ -54,8 +100,7 @@ def live_lines(path: Path):
     """(lineno, line) pairs LaTeX actually reads: comments stripped, nothing after \\end{document} or \\endinput."""
     for n, raw in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
         line = _strip_comments(raw)
-        if "\\end{document}" in line or "\\endinput" in line:
-            yield n, line.split("\\end{document}")[0].split("\\endinput")[0]
+        if re.match(r"\s*\\(?:end\{document\}|endinput)", line):
             return
         yield n, line
 
@@ -67,10 +112,21 @@ def _loc(lay: Layout, path: Path, lineno: int) -> str:
 # --- numbers --------------------------------------------------------------------------------
 
 
+def _reason_ok(reason: str, bib_keys: set[str]) -> bool:
+    if not reason.strip():
+        return False
+    if _SOURCE_REF.search(reason) or _DECISION_REF.search(reason):
+        return True
+    keys = {k.strip() for m in _CITE_IN_REASON.finditer(reason) for k in m.group(1).split(",")}
+    return bool(keys & bib_keys)
+
+
 def numbers(lay: Layout, result_files: list[Path]) -> list[dict]:
-    """In result files every number must be a ``\\result`` or ``\\nonresult``; entries must exist with the statistic; exploratory entries warn."""
+    """In result files every number must be a ``\\result`` or a ``\\nonresult`` whose reason names a bib key, a saved source or a decision."""
     reg = registry_mod.load(lay) if lay.registry_json.is_file() else {"entries": []}
     entries = {e["id"]: e for e in reg.get("entries", [])}
+    bib = lay.paper / "refs.bib"
+    bib_keys = set(parse_bibtex(bib.read_text(encoding="utf-8", errors="replace"))) if bib.is_file() else set()
     findings = []
     for path in result_files:
         if not path.is_file():
@@ -89,14 +145,19 @@ def numbers(lay: Layout, result_files: list[Path]) -> list[dict]:
                     findings.append({"severity": "major", "message": f"digits must be an integer, got {digits!r}", "location": _loc(lay, path, n)})
                 if e.get("class") == "exploratory":
                     findings.append({"severity": "warning", "message": f"{eid} is exploratory (no preregistration/design review) but is cited in a results file; it cannot support a claim", "location": _loc(lay, path, n)})
+            for m in NONRESULT_RE.finditer(line):
+                if not _reason_ok(m.group(2), bib_keys):
+                    findings.append({"severity": "major", "message": f"\\nonresult{{{m.group(1)}}}: the reason must name where the number comes from: a \\cite key in refs.bib, a papers/sources/<id>.md path, or a decision id (D0NN)", "location": _loc(lay, path, n)})
             scrubbed = RESULT_RE.sub(" ", line)
             scrubbed = NONRESULT_RE.sub(" ", scrubbed)
             scrubbed = RESULTCLASS_RE.sub(" ", scrubbed)
-            scrubbed = _ARG_RE.sub(" ", scrubbed)
             scrubbed = _OPT_RE.sub(" ", scrubbed)
-            scrubbed = re.sub(r"\$[^$]*\$", lambda mm: " " if not re.search(r"\d", mm.group(0)) else mm.group(0), scrubbed)
+            scrubbed = _scrub_structural(scrubbed)
             for m in NUMBER_RE.finditer(scrubbed):
-                findings.append({"severity": "major", "message": f"bare number {m.group(0).strip()!r}: write it as \\result{{entry}}{{stat}}{{digits}} or \\nonresult{{{m.group(0).strip()}}}{{source and locator}}", "location": _loc(lay, path, n)})
+                tok = m.group(0).strip()
+                if _ORDINAL.match(tok):
+                    continue
+                findings.append({"severity": "major", "message": f"bare number '{tok}': write it as \\result{{entry}}{{stat}}{{digits}} or \\nonresult{{{tok}}}{{source and locator}}", "location": _loc(lay, path, n)})
     return findings
 
 
@@ -123,11 +184,14 @@ def parse_bibtex(text: str) -> dict[str, dict]:
             i = j
             continue
         close = "}" if text[j] == "{" else ")"
-        depth, k = 1, j + 1
+        depth, k, quoted = 1, j + 1, False
         while k < n and depth:
-            if text[k] == "{":
+            c = text[k]
+            if c == '"' and depth == 1:
+                quoted = not quoted
+            elif c == "{":
                 depth += 1
-            elif text[k] == "}" or (close == ")" and text[k] == ")" and depth == 1):
+            elif c == "}" or (close == ")" and c == ")" and depth == 1 and not quoted):
                 depth -= 1
             k += 1
         body = text[j + 1:k - 1]
@@ -204,20 +268,48 @@ def _parse_fields(body: str, strings: dict, *, keyed: bool) -> tuple[str | None,
     return key, fields
 
 
-def tex_files(main: Path) -> list[Path]:
-    """``main.tex`` and everything it ``\\input``s or ``\\include``s, recursively, in document order."""
+def live_text(path: Path) -> tuple[str, list[int]]:
+    """The file as one string of live lines plus a map from character offset to line number."""
+    parts, starts, pos = [], [], 0
+    for n, line in live_lines(path):
+        parts.append(line + "\n")
+        starts.append((pos, n))
+        pos += len(line) + 1
+    return "".join(parts), starts
+
+
+def _line_of(starts: list[tuple[int, int]], offset: int) -> int:
+    lo, hi = 0, len(starts) - 1
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if starts[mid][0] <= offset:
+            lo = mid
+        else:
+            hi = mid - 1
+    return starts[lo][1] if starts else 1
+
+
+def tex_files(main: Path, *, outside: list[tuple[Path, str, int]] | None = None) -> list[Path]:
+    """``main.tex`` and everything it ``\\input``s or ``\\include``s, recursively, in document order; inputs outside paper/ are reported via ``outside``."""
     seen, order = set(), []
+    root = main.parent.resolve()
 
     def walk(p: Path):
         if p in seen or not p.is_file():
             return
         seen.add(p)
         order.append(p)
-        for _, line in live_lines(p):
-            for m in INPUT_RE.finditer(line):
-                name = m.group(1).strip()
-                child = main.parent / (name if name.endswith(".tex") else name + ".tex")
-                walk(child)
+        text, starts = live_text(p)
+        for m in INPUT_RE.finditer(text):
+            name = (m.group(1) or m.group(2) or "").strip()
+            child = main.parent / (name if name.endswith(".tex") else name + ".tex")
+            try:
+                child.resolve().relative_to(root)
+            except ValueError:
+                if outside is not None:
+                    outside.append((p, name, _line_of(starts, m.start())))
+                continue
+            walk(child)
 
     walk(main)
     return order
@@ -251,9 +343,11 @@ def citations(lay: Layout, main: Path, bib: Path) -> list[dict]:
     lit = _literature(lay)
     seen: set[str] = set()
     for path in tex_files(main):
-        for n, line in live_lines(path):
-            for m in CITE_RE.finditer(line):
-                for key in (k.strip() for k in m.group(1).split(",")):
+        text, starts = live_text(path)
+        for m in CITE_RE.finditer(text):
+            n = _line_of(starts, m.start())
+            keys = [k.strip() for grp in re.findall(r"\{([^}]*)\}", m.group(1)) for k in grp.split(",")]
+            for key in keys:
                     if not key or key in seen:
                         continue
                     seen.add(key)
@@ -294,23 +388,36 @@ def _check_arxiv(lay: Layout, key: str, aid: str, ver: int | None, loc: str) -> 
 
 
 def figures(lay: Layout, files: list[Path]) -> list[dict]:
+    """Every ``\\includegraphics`` must name ``figures/<name>`` that the manifest lists, that exists, and whose bytes still match the manifest."""
+    import hashlib
+
     man_path = lay.paper / "figures" / "manifest.json"
-    known = set()
+    known: dict = {}
     if man_path.is_file():
         try:
-            known = set(json.loads(man_path.read_text(encoding="utf-8")).get("figures", {}))
+            known = json.loads(man_path.read_text(encoding="utf-8")).get("figures", {})
         except ValueError:
             pass
+    figs = (lay.paper / "figures").resolve()
     findings = []
     for path in files:
         if not path.is_file():
             continue
-        for n, line in live_lines(path):
-            for m in GRAPHICS_RE.finditer(line):
-                target = m.group(1).strip()
-                name = Path(target).name
-                if not (target.startswith("figures/") and name in known):
-                    findings.append({"severity": "major", "message": f"\\includegraphics{{{target}}} is not in figures/manifest.json: every figure comes from a paper/figures/<name>.py script run by `paper figures`", "location": _loc(lay, path, n)})
+        text, starts = live_text(path)
+        for m in GRAPHICS_RE.finditer(text):
+            n = _line_of(starts, m.start())
+            target = m.group(1).strip()
+            loc = _loc(lay, path, n)
+            resolved = (lay.paper / target).resolve()
+            if not target.startswith("figures/") or resolved.parent != figs or resolved.name not in known:
+                findings.append({"severity": "major", "message": f"\\includegraphics{{{target}}} is not figures/<name> listed in figures/manifest.json: every figure comes from a paper/figures/<name>.py script run by `paper figures`", "location": loc})
+                continue
+            if not resolved.is_file():
+                findings.append({"severity": "major", "message": f"{target} is in the manifest but the file is missing (run `paper figures`)", "location": loc})
+                continue
+            want = (known.get(resolved.name) or {}).get("output_sha256")
+            if want and hashlib.sha256(resolved.read_bytes()).hexdigest() != want:
+                findings.append({"severity": "major", "message": f"{target} differs from what its script produced (manifest hash mismatch): run `paper figures` instead of editing the file", "location": loc})
     return findings
 
 
@@ -326,23 +433,39 @@ def material_gaps(files: list[Path], lay: Layout | None = None) -> list[dict]:
     return findings
 
 
-def default_result_files(lay: Layout) -> list[Path]:
+def default_result_files(lay: Layout) -> tuple[list[Path], bool]:
+    """(files, configured): configured names are returned even when missing so the mistake is reported."""
     fm, _ = lay.read_project()
-    names = fm.get("result_files") or ["sections/results.tex", "sections/experiments.tex"]
-    return [lay.paper / n for n in names if (lay.paper / n).is_file()]
+    names = fm.get("result_files")
+    if names:
+        return [lay.paper / n for n in names], True
+    return [lay.paper / n for n in ("sections/results.tex", "sections/experiments.tex") if (lay.paper / n).is_file()], False
 
 
 def verify_paper(lay: Layout, *, result_files: list[Path] | None = None) -> dict:
+    from . import paper as paper_mod
+
     main = lay.paper / "main.tex"
     if not main.is_file():
         raise NotFoundError(f"no {lay.rel(main)}")
-    files = tex_files(main)
-    rfiles = list(result_files) if result_files else default_result_files(lay)
+    outside: list = []
+    files = tex_files(main, outside=outside)
     findings = []
+    for src, name, n in outside:
+        findings.append({"severity": "major", "message": f"\\input{{{name}}} reaches outside paper/; the draft hash and the review cannot bind it", "location": _loc(lay, src, n)})
+    if result_files:
+        rfiles = list(result_files)
+    else:
+        rfiles, _configured = default_result_files(lay)
+    if not rfiles:
+        findings.append({"severity": "warning", "message": "no result file is checked for bare numbers: set `result_files` in project.md or pass --result-files (default: sections/results.tex, sections/experiments.tex)", "location": lay.rel(lay.project_md)})
     findings += numbers(lay, rfiles)
     findings += citations(lay, main, lay.paper / "refs.bib")
     findings += figures(lay, files)
     findings += material_gaps(files, lay)
+    results_tex = lay.paper / "results.tex"
+    if results_tex.is_file() and results_tex.read_text(encoding="utf-8") != paper_mod.render_results(lay):
+        findings.append({"severity": "major", "message": "results.tex differs from what the registry renders: run `paper results` (something edited the generated file)", "location": lay.rel(results_tex)})
     majors = [f for f in findings if f["severity"] == "major"]
     if majors:
         raise GateError(f"paper verify: {len(majors)} problem(s), {len(findings) - len(majors)} warning(s)", findings=findings)
