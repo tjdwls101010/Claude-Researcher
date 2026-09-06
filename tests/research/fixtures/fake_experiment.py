@@ -9,6 +9,7 @@ an invalid file.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -24,7 +25,7 @@ p.add_argument("--bad-schema", action="store_true")
 p.add_argument("--sleep", type=float, default=0)
 p.add_argument("--same", action="store_true", help="give every condition identical values (a sanity-check trap)")
 p.add_argument("--artifact", action="store_true")
-a = p.parse_args()
+a, _unknown = p.parse_known_args()  # extra args (e.g. redaction tests) are ignored
 
 print("fake experiment starting", flush=True)
 print("cwd", os.getcwd(), flush=True)
@@ -49,7 +50,7 @@ for ci, c in enumerate(conds):
 out = {
     "schema_version": 1,
     "metric_def": {a.metric: {"description": "fraction correct", "unit": "ratio", "direction": "maximize"}},
-    "conditions": {c: {"config_sha256": f"cfg-{c}"} for c in conds},
+    "conditions": {c: {"config_sha256": hashlib.sha256(f"cfg-{c}".encode()).hexdigest()} for c in conds},
     "observations": obs,
 }
 (run_dir / "results.json").write_text(json.dumps(out, indent=1))

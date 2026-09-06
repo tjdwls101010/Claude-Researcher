@@ -81,3 +81,26 @@ def test_missing_metric_def_and_non_finite_values_warn(lay):
     assert {"missing-metric-def", "non-finite"} <= kinds
     extra = [e for e in reg["entries"] if e["id"].endswith("/extra")][0]
     assert extra["statistics"]["n"] == 1
+
+
+def test_missing_conditions_seed_substitution_and_numeric_equality(lay):
+    runs.start(lay, "pilot", argv(), seeds=[1, 2], now=NOW)
+    rd = lay.runs / "r001"
+    d = json.loads((rd / "results.json").read_text())
+    d["conditions"]["ghost"] = {"config_sha256": "c" * 64}
+    d["observations"] = [o for o in d["observations"] if not (o["condition"] == "method" and o["seed"] == 2)] + [{"condition": "method", "seed": 99, "metrics": {"accuracy": "0.7500"}}]
+    for o in d["observations"]:
+        if o["condition"] == "baseline":
+            o["metrics"]["accuracy"] = {1: "0.5", 2: "0.50"}[o["seed"]]
+        elif o["condition"] == "method":
+            o["metrics"]["accuracy"] = {1: "0.50", 99: "0.5"}[o["seed"]]
+    (rd / "results.json").write_text(json.dumps(d))
+    runs.seal(rd)
+    reg = registry.rebuild(lay)
+    kinds = {w["kind"] for w in reg["warnings"]}
+    assert {"missing-condition", "unexpected-seeds", "identical-means"} <= kinds
+
+
+def test_decimal_precision_is_explicit():
+    s = registry._stats([Decimal("10000000000000000000000000000"), Decimal("10000000000000000000000000001")])
+    assert Decimal(s["std"]).quantize(Decimal("0.00000001")) == Decimal("0.70710678")

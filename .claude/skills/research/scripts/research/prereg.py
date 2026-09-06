@@ -56,7 +56,7 @@ def freeze(lay: Layout, analysis: Path, *, now: str | None = None) -> Path:
     try:
         rel_plan = analysis.resolve().relative_to(lay.dir.resolve()).as_posix()
     except ValueError:
-        rel_plan = str(analysis)
+        rel_plan = str(analysis.resolve())  # outside the project: absolute, so `check` finds the same file
     nums = [int(p.stem[1:]) for p in lay.prereg.glob("P*.md") if _PID.fullmatch(p.stem)]
     pid = f"P{(max(nums) + 1 if nums else 1):02d}"
     fm = {

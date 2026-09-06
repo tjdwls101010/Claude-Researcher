@@ -21,7 +21,10 @@ from .errors import GateError, InputError, NotFoundError, SubprocessError
 from .project import Layout, now_iso, write_readme
 
 ENV_ALLOWLIST = frozenset({"RESEARCH_RUN_DIR", "RESEARCH_SEEDS", "RESEARCH_RUN_ID", "PYTHONHASHSEED", "CUDA_VISIBLE_DEVICES", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "PYTORCH_ENABLE_MPS_FALLBACK", "TOKENIZERS_PARALLELISM"})
-SEALED_FILES = ("run.json", "results.json", "output.log")
+MANDATORY_FILES = ("run.json", "results.json", "output.log")
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+_SECRET_KEY = re.compile(r"(api[-_]?key|token|secret|password|passwd|credential|auth)", re.I)
+_URL_CRED = re.compile(r"(?<=//)[^/@\s]+:[^/@\s]+@")
 _RID = re.compile(r"r\d{3,}")
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 SCHEMA_VERSION = 1
@@ -51,9 +54,11 @@ def validate_results(obj) -> list[dict]:
     if not isinstance(conds, dict) or not conds:
         f.append({"severity": "major", "message": "conditions: object of {condition: {config_sha256}} required", "location": "results.json:conditions"})
         conds = {}
-    for c in conds:
+    for c, spec in conds.items():
         if "/" in c:
             f.append({"severity": "major", "message": f"condition name {c!r} must not contain '/'", "location": f"results.json:conditions.{c}"})
+        if not isinstance(spec, dict) or not isinstance(spec.get("config_sha256"), str) or not _HEX64.fullmatch(spec["config_sha256"]):
+            f.append({"severity": "major", "message": f"conditions.{c}.config_sha256 must be the sha256 (64 hex) of the condition's configuration", "location": f"results.json:conditions.{c}"})
     obs = obj.get("observations")
     if not isinstance(obs, list) or not obs:
         f.append({"severity": "major", "message": "observations: non-empty list of {condition, seed, metrics} required", "location": "results.json:observations"})
@@ -64,14 +69,18 @@ def validate_results(obj) -> list[dict]:
         if not isinstance(o, dict):
             f.append({"severity": "major", "message": "must be an object", "location": loc})
             continue
-        if o.get("condition") not in conds:
-            f.append({"severity": "major", "message": f"condition {o.get('condition')!r} is not declared in conditions", "location": loc})
-        if not isinstance(o.get("seed"), int) or isinstance(o.get("seed"), bool):
+        cond, seed = o.get("condition"), o.get("seed")
+        ok = True
+        if not isinstance(cond, str) or cond not in conds:
+            f.append({"severity": "major", "message": f"condition {cond!r} is not declared in conditions", "location": loc})
+            ok = False
+        if not isinstance(seed, int) or isinstance(seed, bool):
             f.append({"severity": "major", "message": "seed must be an integer", "location": loc})
-        key = (o.get("condition"), o.get("seed"))
-        if key in seen:
-            f.append({"severity": "major", "message": f"duplicate observation for {key}", "location": loc})
-        seen.add(key)
+            ok = False
+        if ok:
+            if (cond, seed) in seen:
+                f.append({"severity": "major", "message": f"duplicate observation for {(cond, seed)}", "location": loc})
+            seen.add((cond, seed))
         metrics = o.get("metrics")
         if not isinstance(metrics, dict) or not metrics:
             f.append({"severity": "major", "message": "metrics must be a non-empty object of decimal strings", "location": loc})
@@ -93,40 +102,77 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _walk(run_dir: Path) -> tuple[list[str], list[str]]:
+    """(regular files, symlinks) under the run directory, relative POSIX paths, seal.json excluded; never follows links."""
+    files, links = [], []
+    stack = [run_dir]
+    while stack:
+        d = stack.pop()
+        for p in sorted(d.iterdir()):
+            rel = p.relative_to(run_dir).as_posix()
+            if p.is_symlink():
+                links.append(rel)
+            elif p.is_dir():
+                stack.append(p)
+            elif p.is_file() and rel != "seal.json":
+                files.append(rel)
+    return sorted(files), sorted(links)
+
+
 def sealed_files(run_dir: Path) -> list[str]:
-    files = [f for f in SEALED_FILES if (run_dir / f).is_file()]
-    art = run_dir / "artifacts"
-    if art.is_dir():
-        files += sorted(p.relative_to(run_dir).as_posix() for p in art.rglob("*") if p.is_file())
-    return files
+    return _walk(run_dir)[0]
 
 
 def seal(run_dir: Path, *, now: str | None = None) -> Path:
-    files = {rel: _sha256(run_dir / rel) for rel in sealed_files(run_dir)}
+    """sha256 of every regular file in the run directory (seal.json itself excluded); a symlink refuses the seal."""
+    files, links = _walk(run_dir)
+    if links:
+        raise GateError("cannot seal a run directory containing symlinks", findings=[{"severity": "major", "message": "symlink", "location": rel} for rel in links])
     out = run_dir / "seal.json"
-    out.write_text(json.dumps({"sealed_at": now or now_iso(), "files": files}, indent=1), encoding="utf-8")
+    out.write_text(json.dumps({"sealed_at": now or now_iso(), "files": {rel: _sha256(run_dir / rel) for rel in files}}, indent=1), encoding="utf-8")
     return out
 
 
-def verify_seal(run_dir: Path) -> list[dict]:
-    """Mismatches between seal.json and the files now; empty means intact. A missing seal is one finding."""
+def read_seal(run_dir: Path) -> tuple[dict | None, list[dict]]:
+    """(seal, findings): the parsed seal when its shape is valid, else why it is not."""
     sj = run_dir / "seal.json"
     if not sj.is_file():
-        return [{"severity": "major", "message": "no seal.json (the run never completed, or was hand-made)", "location": "seal.json"}]
+        return None, [{"severity": "major", "message": "no seal.json (the run never completed, or was hand-made)", "location": "seal.json"}]
     try:
-        files = json.loads(sj.read_text(encoding="utf-8"))["files"]
-    except (ValueError, KeyError, TypeError):
-        return [{"severity": "major", "message": "seal.json unreadable", "location": "seal.json"}]
+        data = json.loads(sj.read_text(encoding="utf-8"))
+    except ValueError:
+        return None, [{"severity": "major", "message": "seal.json is not JSON", "location": "seal.json"}]
+    files = data.get("files") if isinstance(data, dict) else None
+    if not isinstance(files, dict) or not files:
+        return None, [{"severity": "major", "message": "seal.json must be {sealed_at, files: {path: sha256}}", "location": "seal.json"}]
+    bad = [rel for rel, sha in files.items() if not isinstance(rel, str) or rel.startswith("/") or ".." in Path(rel).parts or not (isinstance(sha, str) and _HEX64.fullmatch(sha))]
+    if bad:
+        return None, [{"severity": "major", "message": f"seal.json has malformed entries: {bad[:3]}", "location": "seal.json"}]
+    missing = [m for m in MANDATORY_FILES if m not in files]
+    if missing:
+        return None, [{"severity": "major", "message": f"seal.json does not cover {', '.join(missing)}", "location": "seal.json"}]
+    return data, []
+
+
+def verify_seal(run_dir: Path) -> list[dict]:
+    """Mismatches between seal.json and the files now; empty means intact."""
+    data, findings = read_seal(run_dir)
+    if findings:
+        return findings
+    files = data["files"]
     out = []
     for rel, sha in files.items():
         p = run_dir / rel
-        if not p.is_file():
-            out.append({"severity": "major", "message": "sealed file missing", "location": rel})
+        if p.is_symlink() or not p.is_file():
+            out.append({"severity": "major", "message": "sealed file missing or replaced by a symlink", "location": rel})
         elif _sha256(p) != sha:
             out.append({"severity": "major", "message": "content differs from the seal", "location": rel})
-    for rel in sealed_files(run_dir):
+    present, links = _walk(run_dir)
+    for rel in present:
         if rel not in files:
             out.append({"severity": "major", "message": "file added after the seal", "location": rel})
+    for rel in links:
+        out.append({"severity": "major", "message": "symlink inside a sealed run", "location": rel})
     return out
 
 
@@ -155,15 +201,50 @@ def _check_name(name: str) -> str:
 
 
 def git_state(root: Path, run=subprocess.run) -> tuple[str | None, str | None]:
-    """(HEAD sha, sha256 of `git diff HEAD`) or (None, None) outside a repository; makes a run auditable after the fact."""
+    """(HEAD sha, sha256 over `git diff HEAD` plus every untracked file's path and content) or (None, None) outside a repository.
+
+    Untracked files are hashed too because an experiment script that was never committed is exactly the
+    code an audit needs to identify.
+    """
     try:
         head = run(["git", "rev-parse", "HEAD"], cwd=str(root), capture_output=True, text=True, timeout=30)
         if head.returncode != 0:
             return None, None
         diff = run(["git", "diff", "HEAD", "--", "."], cwd=str(root), capture_output=True, timeout=60)
-        return head.stdout.strip(), hashlib.sha256(diff.stdout if isinstance(diff.stdout, bytes) else diff.stdout.encode()).hexdigest()
+        if diff.returncode != 0:
+            return head.stdout.strip(), None
+        h = hashlib.sha256(diff.stdout if isinstance(diff.stdout, bytes) else diff.stdout.encode())
+        untracked = run(["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=str(root), capture_output=True, timeout=60)
+        if untracked.returncode == 0:
+            raw = untracked.stdout if isinstance(untracked.stdout, bytes) else untracked.stdout.encode()
+            for rel in sorted(x for x in raw.split(b"\0") if x):
+                path = Path(root) / rel.decode("utf-8", "replace")
+                if path.is_file() and not path.is_symlink():
+                    h.update(rel + b"\0")
+                    h.update(_sha256(path).encode())
+        return head.stdout.strip(), h.hexdigest()
     except (OSError, subprocess.SubprocessError):
         return None, None
+
+
+def redact_argv(argv: list[str]) -> list[str]:
+    """Credentials given on the command line are replaced by [REDACTED] before argv is recorded; structure survives."""
+    out = []
+    hide_next = False
+    for a in argv:
+        if hide_next:
+            out.append("[REDACTED]")
+            hide_next = False
+            continue
+        a2 = _URL_CRED.sub("[REDACTED]@", a)
+        if "=" in a2:
+            k, v = a2.split("=", 1)
+            if _SECRET_KEY.search(k):
+                a2 = f"{k}=[REDACTED]"
+        elif a2.startswith("-") and _SECRET_KEY.search(a2):
+            hide_next = True
+        out.append(a2)
+    return out
 
 
 def _write_run_json(run_dir: Path, data: dict) -> None:
@@ -219,8 +300,6 @@ def start(
     if confirmatory:
         from . import gates
 
-        if not prereg:
-            raise InputError("--prereg <PNN> is required with --confirmatory")
         prereg, design_review = gates.confirmatory(lay, prereg)
     else:
         design_review = None
@@ -237,15 +316,18 @@ def start(
     env = dict(os.environ)
     env.update({"RESEARCH_RUN_DIR": str(run_dir.resolve()), "RESEARCH_SEEDS": json.dumps(seeds), "RESEARCH_RUN_ID": run_id})
     git_sha, dirty = git_state(lay.root, run)
+    code_sha, code_dirty = (git_sha, dirty) if cwd.resolve() == lay.root.resolve() else git_state(cwd, run)
     started = now or now_iso()
     rj = {
         "run_id": run_id,
         "name": name,
-        "argv": list(argv),
+        "argv": redact_argv(list(argv)),
         "cwd": str(cwd.resolve()),
         "env": {k: env[k] for k in sorted(ENV_ALLOWLIST) if k in env},
         "git_sha": git_sha,
         "dirty_diff_sha256": dirty,
+        "code_git_sha": code_sha,
+        "code_dirty_sha256": code_dirty,
         "expected_seeds": seeds,
         "prereg": prereg,
         "class": "confirmatory" if confirmatory else "exploratory",
@@ -332,6 +414,14 @@ def _check_manifest(src: Path, manifest: dict) -> list[dict]:
             f.append({"severity": "major", "message": f"{p.relative_to(src).as_posix()} is present but not in the manifest", "location": "directory"})
     if "results.json" not in listed:
         f.append({"severity": "major", "message": "manifest does not list results.json", "location": "manifest"})
+    import unicodedata
+
+    folded: dict[str, str] = {}
+    for rel in sorted(listed):
+        key = unicodedata.normalize("NFC", rel).casefold()
+        if key in folded:
+            f.append({"severity": "major", "message": f"{rel!r} and {folded[key]!r} collide as name aliases (case or unicode form) on a case-insensitive filesystem", "location": "manifest"})
+        folded[key] = rel
     return f
 
 
@@ -344,20 +434,14 @@ def import_run(lay: Layout, src: Path, manifest_path: Path, *, name: str, seeds:
         raise NotFoundError(f"{src} is not a directory")
     if not manifest_path.is_file():
         raise NotFoundError(f"manifest {manifest_path} not found")
+    manifest_bytes = manifest_path.read_bytes()
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except ValueError as exc:
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as exc:
         raise InputError(f"manifest is not JSON: {exc}")
     findings = _check_manifest(src, manifest)
     if findings:
         raise GateError(f"import refused: {len(findings)} manifest mismatch(es)", findings=findings)
-    try:
-        results = json.loads((src / "results.json").read_text(encoding="utf-8"))
-    except ValueError as exc:
-        raise GateError("import refused", findings=[{"severity": "major", "message": f"results.json is not JSON: {exc}", "location": "results.json"}])
-    findings = validate_results(results)
-    if findings:
-        raise GateError("import refused: results.json invalid", findings=findings)
     if prereg:
         from . import prereg as prereg_mod
 
@@ -365,10 +449,25 @@ def import_run(lay: Layout, src: Path, manifest_path: Path, *, name: str, seeds:
     lay.runs.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".import-", dir=lay.runs))
     try:
+        producer_run = None
         for r in manifest["files"]:
-            dst = staging / r["path"]
+            rel = "producer_run.json" if r["path"] == "run.json" else r["path"]
+            if rel == "producer_run.json":
+                producer_run = rel
+            dst = staging / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src / r["path"], dst)
+            with open(src / r["path"], "rb") as fh_in, open(dst, "xb") as fh_out:
+                shutil.copyfileobj(fh_in, fh_out)
+            # the bytes that were verified are the bytes that get sealed: re-check the staged copy, not the source
+            if dst.stat().st_size != r["size"] or _sha256(dst) != r["sha256"]:
+                raise GateError("import refused: file changed while copying", findings=[{"severity": "major", "message": f"{r['path']} differs from the manifest after copy", "location": r["path"]}])
+        try:
+            results = json.loads((staging / "results.json").read_text(encoding="utf-8"))
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise GateError("import refused", findings=[{"severity": "major", "message": f"results.json is not JSON: {exc}", "location": "results.json"}])
+        bad = validate_results(results)
+        if bad:
+            raise GateError("import refused: results.json invalid", findings=bad)
         if not (staging / "output.log").exists():
             (staging / "output.log").write_text("", encoding="utf-8")
         run_id = next_run_id(lay)
@@ -385,7 +484,7 @@ def import_run(lay: Layout, src: Path, manifest_path: Path, *, name: str, seeds:
             "prereg": prereg,
             "class": "exploratory",
             "design_review": None,
-            "imported_from": {"directory": str(src.resolve()), "manifest_sha256": _sha256(manifest_path), "files": len(manifest["files"])},
+            "imported_from": {"directory": str(src.resolve()), "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(), "files": len(manifest["files"]), "producer_run": producer_run},
             "started": None,
             "ended": now or now_iso(),
             "child_exit": None,

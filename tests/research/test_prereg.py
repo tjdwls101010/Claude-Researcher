@@ -65,3 +65,10 @@ def test_latest_prereg_is_the_default(lay):
     assert prereg.freeze(lay, lay.dir / "analysis.md", now=NOW).name == "P02.md"
     assert prereg.latest(lay) == "P02"
     assert prereg.check(lay)["added"] == []
+
+
+def test_plan_outside_the_project_dir_is_stored_absolute(lay, tmp_path):
+    plan = tmp_path / "elsewhere.md"
+    plan.write_text("plan")
+    prereg.freeze(lay, plan, now=NOW)
+    assert prereg.check(lay)["analysis_changed"] is False

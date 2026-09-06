@@ -8,7 +8,7 @@ names may not contain ``/`` (results validation enforces it).
 from __future__ import annotations
 
 import json
-from decimal import Decimal, InvalidOperation
+from decimal import Context, Decimal, InvalidOperation, localcontext
 from pathlib import Path
 
 from . import runs as runs_mod
@@ -25,16 +25,15 @@ def _dec(v: str) -> Decimal | None:
 
 
 def _stats(values: list[Decimal]) -> dict:
+    """Sample statistics under an explicit Decimal context: enough precision for the widest input plus guard digits, so the process context cannot change a number."""
     n = len(values)
     if n == 0:
         return {"n": 0, "mean": None, "std": None, "min": None, "max": None}
-    mean = sum(values) / n
-    if n > 1:
-        var = sum((v - mean) ** 2 for v in values) / (n - 1)
-        std = var.sqrt()
-    else:
-        std = None
-    return {"n": n, "mean": str(mean), "std": None if std is None else str(std), "min": str(min(values)), "max": str(max(values))}
+    span = max((len(v.as_tuple().digits) + abs(v.as_tuple().exponent)) for v in values)
+    with localcontext(Context(prec=max(28, span + 12))):
+        mean = sum(values) / n
+        std = (sum((v - mean) ** 2 for v in values) / (n - 1)).sqrt() if n > 1 else None
+    return {"n": n, "mean": str(mean.normalize() if mean == mean.to_integral() and False else mean), "std": None if std is None else str(std), "min": str(min(values)), "max": str(max(values))}
 
 
 def rebuild(lay: Layout, *, min_seeds: int | None = None, strict: bool = False) -> dict:
@@ -50,20 +49,36 @@ def rebuild(lay: Layout, *, min_seeds: int | None = None, strict: bool = False) 
         if rj.get("status") != "completed":
             excluded.append({"run_id": rid, "reason": f"status is {rj.get('status')!r}, not completed (failed/interrupted runs carry no evidence)"})
             continue
+        seal, seal_findings = runs_mod.read_seal(rd)
+        if seal_findings:
+            excluded.append({"run_id": rid, "reason": "seal invalid: " + seal_findings[0]["message"]})
+            continue
+        # read each sealed input once and index exactly the bytes the seal vouches for
+        try:
+            run_bytes = (rd / "run.json").read_bytes()
+            results_bytes = (rd / "results.json").read_bytes()
+        except OSError:
+            excluded.append({"run_id": rid, "reason": "run.json or results.json unreadable"})
+            continue
+        import hashlib
+
+        if hashlib.sha256(run_bytes).hexdigest() != seal["files"]["run.json"] or hashlib.sha256(results_bytes).hexdigest() != seal["files"]["results.json"]:
+            excluded.append({"run_id": rid, "reason": "seal does not match: run.json or results.json differ from the sealed bytes"})
+            continue
         mismatches = runs_mod.verify_seal(rd)
         if mismatches:
             excluded.append({"run_id": rid, "reason": "seal does not match: " + "; ".join(f"{m['location']} ({m['message']})" for m in mismatches)})
             continue
         try:
-            results = json.loads((rd / "results.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            rj = json.loads(run_bytes.decode("utf-8"))
+            results = json.loads(results_bytes.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
             excluded.append({"run_id": rid, "reason": "results.json unreadable"})
             continue
         bad = runs_mod.validate_results(results)
         if bad:
             excluded.append({"run_id": rid, "reason": "results.json invalid: " + bad[0]["message"]})
             continue
-        seal = json.loads((rd / "seal.json").read_text(encoding="utf-8"))
         inputs[rid] = {"results_sha256": seal["files"].get("results.json"), "sealed_at": seal.get("sealed_at"), "prereg": rj.get("prereg"), "class": rj.get("class"), "git_sha": rj.get("git_sha"), "design_review": rj.get("design_review")}
         metric_def = results["metric_def"]
         expected = rj.get("expected_seeds") or []
@@ -76,6 +91,14 @@ def rebuild(lay: Layout, *, min_seeds: int | None = None, strict: bool = False) 
         for m in metrics_seen:
             if m not in metric_def:
                 warnings.append({"kind": "missing-metric-def", "run_id": rid, "metric": m, "message": f"{rid}: metric {m!r} has no metric_def (unit and direction unknown)"})
+        observed_conds = {c for c, _ in by_key}
+        for c in sorted(set(results["conditions"]) - observed_conds):
+            warnings.append({"kind": "missing-condition", "run_id": rid, "metric": None, "message": f"{rid}: condition {c!r} is declared but has no observations"})
+        if expected:
+            for c in sorted(observed_conds):
+                seeds = sorted({o["seed"] for o in results["observations"] if o["condition"] == c})
+                if seeds != sorted(expected):
+                    warnings.append({"kind": "unexpected-seeds", "run_id": rid, "metric": None, "message": f"{rid}/{c}: observed seeds {seeds} != expected {sorted(expected)}"})
         for (cond, m), rows in sorted(by_key.items()):
             values, decimals = [], []
             for seed, v in sorted(rows):
@@ -101,15 +124,15 @@ def rebuild(lay: Layout, *, min_seeds: int | None = None, strict: bool = False) 
                 "prereg": rj.get("prereg"),
             })
         for m in metrics_seen:
-            conds = {c: [v for _, v in sorted(rows)] for (c, mm), rows in by_key.items() if mm == m}
+            conds = {c: {seed: _dec(v) for seed, v in rows if _dec(v) is not None} for (c, mm), rows in by_key.items() if mm == m}
             if len(conds) < 2:
                 continue
             names = sorted(conds)
             for i, a in enumerate(names):
                 for b in names[i + 1:]:
-                    if conds[a] == conds[b]:
+                    if conds[a] and conds[a] == conds[b]:
                         warnings.append({"kind": "identical-values-across-conditions", "run_id": rid, "metric": m, "message": f"{rid}/{m}: conditions {a!r} and {b!r} have identical per-seed values (same code path or a copy bug?)"})
-            means = {c: _stats([d for d in map(_dec, vs) if d is not None])["mean"] for c, vs in conds.items()}
+            means = {c: (Decimal(_stats(list(vs.values()))["mean"]) if vs else None) for c, vs in conds.items()}
             if len(set(means.values())) == 1:
                 warnings.append({"kind": "identical-means", "run_id": rid, "metric": m, "message": f"{rid}/{m}: every condition has the same mean ({next(iter(means.values()))})"})
     reg = {"schema_version": 1, "entries": entries, "inputs": inputs, "excluded_runs": excluded, "warnings": warnings}
